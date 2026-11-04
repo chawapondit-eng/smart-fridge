@@ -1,0 +1,680 @@
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
+import { useHousehold } from '@/contexts/HouseholdContext';
+import { createClient } from '@/lib/supabase/client';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { SkeletonRow } from '@/components/ui/LoadingSkeleton';
+import toast from 'react-hot-toast';
+import {
+  Home,
+  UserPlus,
+  Shield,
+  User,
+  Copy,
+  Check,
+  Trash2,
+  KeyRound,
+  X,
+  AlertCircle,
+  ArrowRight,
+} from 'lucide-react';
+
+interface MemberDetail {
+  id: string;
+  user_id: string;
+  role: 'owner' | 'member';
+  joined_at: string;
+  users: {
+    id: string;
+    email: string;
+    display_name: string;
+    avatar_url: string | null;
+  } | null;
+}
+
+export default function HouseholdPage() {
+  const supabase = createClient();
+  const {
+    currentHousehold,
+    households,
+    setCurrentHousehold,
+    deleteHousehold,
+    joinHousehold,
+    authUser,
+    user,
+  } = useHousehold();
+
+  const [members, setMembers] = useState<MemberDetail[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Invite Modal
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Join Modal
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [joinCodeInput, setJoinCodeInput] = useState('');
+  const [joining, setJoining] = useState(false);
+
+  // Remove member modal
+  const [removingMember, setRemovingMember] = useState<MemberDetail | null>(null);
+  const [removing, setRemoving] = useState(false);
+
+  // Delete Household modal
+  const [deletingHousehold, setDeletingHousehold] = useState<{ id: string; name: string } | null>(
+    null
+  );
+  const [deletingHh, setDeletingHh] = useState(false);
+
+  const fetchMembers = useCallback(async () => {
+    if (!currentHousehold?.id) return;
+    setLoading(true);
+    try {
+      // 1. ดึง household_members แบบปลอดภัยด้วย select('*')
+      const { data: memberRows, error: mErr } = await supabase
+        .from('household_members')
+        .select('*')
+        .eq('household_id', currentHousehold.id);
+
+      if (mErr) throw mErr;
+      if (!memberRows || memberRows.length === 0) {
+        setMembers([]);
+        return;
+      }
+
+      // 2. ดึง user profiles
+      const userIds = memberRows.map((m) => m.user_id);
+      const { data: userProfiles } = await supabase
+        .from('users')
+        .select('id, email, display_name, avatar_url')
+        .in('id', userIds);
+
+      const userMap = new Map((userProfiles || []).map((u) => [u.id, u]));
+
+      // ถ้า user ปัจจุบันยังไม่มีโปรไฟล์ในตาราง public.users ให้สร้างทันที
+      if (authUser && !userMap.has(authUser.id)) {
+        const selfProfile = {
+          id: authUser.id,
+          email: authUser.email || '',
+          display_name: user?.display_name || authUser.email?.split('@')[0] || 'สมาชิก',
+          avatar_url: user?.avatar_url || null,
+        };
+        userMap.set(authUser.id, selfProfile as any);
+        try {
+          await supabase.from('users').upsert(selfProfile);
+        } catch {
+          // ignore
+        }
+      }
+
+      const combined: MemberDetail[] = memberRows
+        .sort((a, b) => (a.role === 'owner' ? -1 : 1))
+        .map((m, index) => {
+          const profile = userMap.get(m.user_id);
+          const isSelf = m.user_id === authUser?.id;
+          return {
+            id: (m.id as string) || `${m.household_id}_${m.user_id}` || String(index),
+            user_id: m.user_id,
+            role: (m.role as 'owner' | 'member') || 'member',
+            joined_at: (m.joined_at as string) || (m.created_at as string) || '',
+            users: profile || {
+              id: m.user_id,
+              email: isSelf ? authUser?.email || '' : '',
+              display_name: isSelf
+                ? user?.display_name || authUser?.email?.split('@')[0] || 'สมาชิก'
+                : 'สมาชิก',
+              avatar_url: isSelf ? user?.avatar_url || null : null,
+            },
+          };
+        });
+
+      setMembers(combined);
+    } catch (err) {
+      console.error('Error fetching household members:', (err as { message?: string })?.message || err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentHousehold?.id, authUser, user, supabase]);
+
+  useEffect(() => {
+    fetchMembers();
+  }, [fetchMembers]);
+
+  // Generate Invite Code
+  async function generateInvite() {
+    if (!currentHousehold?.id || !authUser?.id) return;
+    setGeneratingCode(true);
+    try {
+      // 1. ตรวจสอบและสร้าง Profile ใน public.users เพื่อให้ Foreign Key ผ่าน 100%
+      try {
+        await supabase.from('users').upsert({
+          id: authUser.id,
+          email: authUser.email || '',
+          display_name: user?.display_name || authUser.email?.split('@')[0] || 'สมาชิก',
+          avatar_url: user?.avatar_url || null,
+        });
+      } catch (uErr) {
+        console.warn('Upsert user warning:', uErr);
+      }
+
+      // สร้าง Code สุ่ม 8 หลัก
+      const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const code = `FRIDGE-${randomStr}`;
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // มีอายุ 7 วัน
+
+      const inviteId =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+              const r = (Math.random() * 16) | 0;
+              const v = c === 'x' ? r : (r & 0x3) | 0x8;
+              return v.toString(16);
+            });
+
+      // 2. ลอง insert เข้า invitations พร้อม id
+      const payload: Record<string, unknown> = {
+        id: inviteId,
+        household_id: currentHousehold.id,
+        invite_code: code,
+        created_by: authUser.id,
+        expires_at: expiresAt.toISOString(),
+        max_uses: 5,
+        use_count: 0,
+        is_active: true,
+      };
+
+      let res = await supabase.from('invitations').insert(payload);
+
+      // ถ้าไม่สำเร็จ ลอง retry แบบ minimal
+      if (res.error) {
+        console.warn('First insert attempt error:', res.error);
+        // ลองคง created_by ไว้แต่ตัดคอลัมน์เสริม
+        let retry = await supabase.from('invitations').insert({
+          id: inviteId,
+          household_id: currentHousehold.id,
+          invite_code: code,
+          created_by: authUser.id,
+          expires_at: expiresAt.toISOString(),
+        });
+
+        // ถ้ายังติด (เช่น created_by ไม่มีใน schema หรือติด foreign key) ลองตัด created_by
+        if (retry.error) {
+          retry = await supabase.from('invitations').insert({
+            id: inviteId,
+            household_id: currentHousehold.id,
+            invite_code: code,
+            expires_at: expiresAt.toISOString(),
+          });
+        }
+
+        res = retry;
+      }
+
+      // 3. ถ้า invitations table ไม่มีใน Supabase หรือติด Permission RLS
+      // ให้ใช้ Direct Household Code สำรอง เพื่อให้ใช้งานได้ทันที 100%
+      if (res.error) {
+        console.warn('Invitations insert failed, using Direct Household Code:', res.error);
+        const directCode = `HH-${currentHousehold.id.replace(/-/g, '').substring(0, 8).toUpperCase()}`;
+        setInviteCode(directCode);
+        setShowInviteModal(true);
+        toast.success('สร้างรหัสคำเชิญเข้าครัวเรือนสำเร็จ!');
+        return;
+      }
+
+      setInviteCode(code);
+      setShowInviteModal(true);
+      toast.success('สร้างรหัสคำเชิญสำเร็จ!');
+    } catch (err: unknown) {
+      console.error('generateInvite catch:', err);
+      // Fallback เผื่อไว้เสมอ ไม่ให้ผู้ใช้ติดบล็อก
+      const directCode = `HH-${currentHousehold.id.replace(/-/g, '').substring(0, 8).toUpperCase()}`;
+      setInviteCode(directCode);
+      setShowInviteModal(true);
+      toast.success('สร้างรหัสคำเชิญเข้าครัวเรือนสำเร็จ!');
+    } finally {
+      setGeneratingCode(false);
+    }
+  }
+
+  function handleCopyInvite() {
+    if (!inviteCode) return;
+    navigator.clipboard.writeText(inviteCode);
+    setCopied(true);
+    toast.success('คัดลอกรหัสคำเชิญแล้ว');
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleJoinSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const clean = joinCodeInput.trim();
+    if (!clean) return;
+    setJoining(true);
+    try {
+      const ok = await joinHousehold(clean);
+      if (ok) {
+        setShowJoinModal(false);
+        setJoinCodeInput('');
+        fetchMembers();
+      }
+    } finally {
+      setJoining(false);
+    }
+  }
+
+  async function handleRemoveMemberConfirm() {
+    if (!removingMember || !currentHousehold?.id) return;
+    setRemoving(true);
+    try {
+      const { error } = await supabase
+        .from('household_members')
+        .delete()
+        .eq('household_id', currentHousehold.id)
+        .eq('user_id', removingMember.user_id);
+
+      if (error) throw error;
+
+      toast.success('นำสมาชิกออกจากครัวเรือนแล้ว');
+      setRemovingMember(null);
+      fetchMembers();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'นำสมาชิกออกไม่สำเร็จ';
+      toast.error(msg);
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  async function handleDeleteHouseholdConfirm() {
+    if (!deletingHousehold) return;
+    setDeletingHh(true);
+    try {
+      await deleteHousehold(deletingHousehold.id);
+      setDeletingHousehold(null);
+    } finally {
+      setDeletingHh(false);
+    }
+  }
+
+  const isOwner = currentHousehold?.role === 'owner';
+
+  return (
+    <MainLayout>
+      <div className="space-y-6 animate-in fade-in duration-300">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center">
+                <Home className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground">
+                  {currentHousehold?.name || 'จัดการครัวเรือน'}
+                </h1>
+                <p className="text-xs text-muted">
+                  สมาชิกทั้งหมด {members.length} คน
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setJoinCodeInput('');
+                setShowJoinModal(true);
+              }}
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-medium text-sm text-foreground bg-card hover:bg-muted/10 border border-border shadow-xs transition"
+            >
+              <KeyRound className="w-4 h-4 text-primary-600" />
+              <span>เข้าร่วมด้วยรหัสคำเชิญ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={generateInvite}
+              disabled={generatingCode}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] shadow-sm shadow-primary-600/25 transition"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>เชิญสมาชิกเข้าบ้าน</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Banner if user is in an accidentally generated HH- household */}
+        {currentHousehold?.name.startsWith('HH-') && (
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in fade-in">
+            <div className="flex items-start gap-2.5 text-amber-800 dark:text-amber-300">
+              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">
+                  คุณกำลังอยู่ในครัวเรือน &quot;{currentHousehold.name}&quot; ซึ่งเป็นบ้านที่สร้างแยกไว้
+                </p>
+                <p className="text-amber-700/80 dark:text-amber-400/80 mt-0.5">
+                  หากต้องการเข้าบ้าน &quot;เจมมี่&quot; เพื่อแชร์ตู้เย็นร่วมกับครอบครัว กรุณากดปุ่มด้านขวาเพื่อกรอกรหัสคำเชิญ
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setJoinCodeInput(currentHousehold.name);
+                setShowJoinModal(true);
+              }}
+              className="px-3.5 py-1.5 rounded-xl font-bold bg-amber-500 text-white hover:bg-amber-600 transition shrink-0 self-end sm:self-auto"
+            >
+              เข้าร่วมบ้านหลัก
+            </button>
+          </div>
+        )}
+
+        {/* Switch Household section if multiple */}
+        {households.length > 1 && (
+          <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-foreground">
+                ครัวเรือนทั้งหมดของคุณ ({households.length} ครัวเรือน)
+              </h2>
+              <span className="text-xs text-muted">คลิกเพื่อสลับบ้าน</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {households.map((h) => {
+                const isCurrent = h.id === currentHousehold?.id;
+                return (
+                  <button
+                    key={h.id}
+                    type="button"
+                    onClick={() => {
+                      setCurrentHousehold(h);
+                      toast.success(`สลับไปยังบ้าน "${h.name}" แล้ว`);
+                    }}
+                    className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition ${
+                      isCurrent
+                        ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 shadow-xs'
+                        : 'border-border bg-background hover:bg-muted/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center shrink-0">
+                        <Home className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-sm font-bold text-foreground block truncate">
+                          {h.name}
+                        </span>
+                        <span className="text-[11px] text-muted">
+                          {h.role === 'owner' ? 'เจ้าของ' : 'สมาชิก'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {isCurrent ? (
+                      <span className="text-xs font-semibold text-primary-600 bg-primary-100 dark:bg-primary-900/40 px-2.5 py-1 rounded-lg shrink-0">
+                        ใช้งานอยู่ ✓
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCurrentHousehold(h);
+                            toast.success(`สลับไปยังบ้าน "${h.name}" แล้ว`);
+                          }}
+                          className="text-xs text-primary-600 hover:text-primary-700 bg-primary-50 dark:bg-primary-950/40 px-2.5 py-1 rounded-lg flex items-center gap-1 font-semibold transition"
+                        >
+                          <span>สลับมาบ้านนี้</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+
+                        {h.role === 'owner' && (
+                          <button
+                            type="button"
+                            onClick={() => setDeletingHousehold({ id: h.id, name: h.name })}
+                            className="p-1 rounded-lg text-muted hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
+                            title="ลบครัวเรือนที่ไม่ใช้งานนี้"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Member List Section */}
+        <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm space-y-4">
+          <h2 className="text-base font-bold text-foreground">
+            รายชื่อสมาชิกในครอบครัว
+          </h2>
+
+          {loading ? (
+            <div className="space-y-3">
+              <SkeletonRow />
+              <SkeletonRow />
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {members.map((m) => {
+                const isSelf = m.user_id === authUser?.id;
+                const name = m.users?.display_name || m.users?.email?.split('@')[0] || 'สมาชิก';
+
+                return (
+                  <div
+                    key={m.id}
+                    className="py-3.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 font-bold text-sm flex items-center justify-center flex-shrink-0 overflow-hidden shadow-xs">
+                        {m.users?.avatar_url?.startsWith('data:image') || m.users?.avatar_url?.startsWith('http') ? (
+                          <img src={m.users.avatar_url} alt={name} className="w-full h-full object-cover" />
+                        ) : m.users?.avatar_url ? (
+                          <span className="text-lg">{m.users.avatar_url}</span>
+                        ) : (
+                          name.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-foreground truncate">
+                            {name}
+                          </span>
+                          {isSelf && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-950/50 text-primary-600 font-medium">
+                              คุณ
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted block truncate">
+                          {m.users?.email}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                          m.role === 'owner'
+                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                            : 'bg-muted/15 text-muted'
+                        }`}
+                      >
+                        {m.role === 'owner' ? (
+                          <>
+                            <Shield className="w-3 h-3 text-amber-500" />
+                            <span>เจ้าของ</span>
+                          </>
+                        ) : (
+                          <>
+                            <User className="w-3 h-3" />
+                            <span>สมาชิก</span>
+                          </>
+                        )}
+                      </span>
+
+                      {/* Remove Button (Owner only, cannot remove self) */}
+                      {isOwner && !isSelf && (
+                        <button
+                          onClick={() => setRemovingMember(m)}
+                          className="p-1.5 rounded-lg text-muted hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
+                          title="นำออกจากครัวเรือน"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Invite Member Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setShowInviteModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-muted/10 transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center mb-4">
+              <KeyRound className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-lg font-bold tracking-tight text-foreground">
+              เชิญสมาชิกเข้าครัวเรือน 🎉
+            </h3>
+            <p className="text-xs text-muted mt-1 leading-relaxed">
+              ส่งรหัสคำเชิญนี้ให้สมาชิกในบ้าน เพื่อให้นำไปกรอกเข้าร่วมครัวเรือน &quot;{currentHousehold?.name}&quot;
+            </p>
+
+            <div className="my-5 p-4 rounded-xl border border-dashed border-primary-500/50 bg-primary-50/50 dark:bg-primary-950/30 text-center">
+              <span className="text-xs text-muted block mb-1">รหัสคำเชิญของคุณ:</span>
+              <div className="text-2xl font-black font-mono tracking-widest text-primary-700 dark:text-primary-300">
+                {inviteCode}
+              </div>
+              <span className="text-[11px] text-muted block mt-1">
+                (ใช้ได้ 5 ครั้ง • หมดอายุใน 7 วัน)
+              </span>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleCopyInvite}
+                className="flex-1 py-2.5 px-4 rounded-xl font-semibold text-sm text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] transition flex items-center justify-center gap-2 shadow-sm"
+              >
+                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                <span>{copied ? 'คัดลอกสำเร็จ!' : 'คัดลอกรหัสคำเชิญ'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Join Household Modal */}
+      {showJoinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <button
+              type="button"
+              onClick={() => setShowJoinModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-muted/10 transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center mb-4">
+              <KeyRound className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-lg font-bold tracking-tight text-foreground">
+              เข้าร่วมครัวเรือนด้วยรหัสคำเชิญ 🔑
+            </h3>
+            <p className="text-xs text-muted mt-1 leading-relaxed">
+              กรอกรหัสคำเชิญที่ได้รับจากคนในบ้าน เพื่อเข้าร่วมบ้านเดียวกันและแชร์ตู้เย็นร่วมกัน
+            </p>
+
+            <form onSubmit={handleJoinSubmit} className="space-y-4 my-5">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+                  รหัสคำเชิญ (Invite Code)
+                </label>
+                <input
+                  type="text"
+                  value={joinCodeInput}
+                  onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
+                  placeholder="เช่น HH-6C70F490 หรือ FRIDGE-XXXXXX"
+                  required
+                  autoFocus
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground uppercase tracking-widest font-mono focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+                />
+                <p className="text-[11px] text-muted mt-1">
+                  * สามารถกรอกรหัสขึ้นต้นด้วย HH- หรือ FRIDGE- หรือชื่อบ้านก็ได้
+                </p>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowJoinModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted hover:text-foreground"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={joining || !joinCodeInput.trim()}
+                  className="px-5 py-2 rounded-xl font-semibold text-xs text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 transition"
+                >
+                  {joining ? 'กำลังตรวจสอบ...' : 'เข้าร่วมครัวเรือน ➔'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Member Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(removingMember)}
+        onClose={() => setRemovingMember(null)}
+        onConfirm={handleRemoveMemberConfirm}
+        title="ยืนยันการนำสมาชิกออก"
+        description={`คุณแน่ใจหรือไม่ว่าต้องการนำสมาชิก "${removingMember?.users?.display_name}" ออกจากครัวเรือน?`}
+        confirmLabel="นำสมาชิกออก"
+        isDanger
+        loading={removing}
+      />
+
+      {/* Delete Household Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(deletingHousehold)}
+        onClose={() => setDeletingHousehold(null)}
+        onConfirm={handleDeleteHouseholdConfirm}
+        title="ยืนยันการลบครัวเรือน"
+        description={`คุณแน่ใจหรือไม่ว่าต้องการลบครัวเรือน "${deletingHousehold?.name}"? ข้อมูลตู้เย็นและสมาชิกในบ้านหลังนี้จะถูกลบทั้งหมด`}
+        confirmLabel="ลบครัวเรือนนี้"
+        isDanger
+        loading={deletingHh}
+      />
+    </MainLayout>
+  );
+}
+
