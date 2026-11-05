@@ -59,6 +59,49 @@ function RecipesContent() {
   const [selectedPreferences, setSelectedPreferences] = useState<string[]>(['easy']);
   const [deductedRecipes, setDeductedRecipes] = useState<Set<string>>(new Set());
 
+  // รายการสูตรอาหารที่ได้จาก AI
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+
+  // ฟังก์ชันเรียก Gemini AI คิดสูตรอาหารจริงจากวัตถุดิบใกล้หมดอายุ
+  const generateRealRecipes = React.useCallback(
+    async (items: ExpiringIngredient[], prefs: string[]) => {
+      if (items.length === 0) {
+        setRecipes([]);
+        return;
+      }
+
+      setGenerating(true);
+      try {
+        const res = await fetch('/api/generate-recipes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ingredients: items.map((i) => ({
+              name: i.name,
+              quantity: i.quantity,
+              unit: i.unit,
+              fridgeName: i.fridgeName,
+            })),
+            preferences: prefs,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.recipes && Array.isArray(data.recipes) && data.recipes.length > 0) {
+          setRecipes(data.recipes);
+        } else {
+          toast.error(data.error || 'ไม่สามารถสร้างสูตรอาหารได้');
+        }
+      } catch (err) {
+        console.error('Error generating recipes:', err);
+        toast.error('ไม่สามารถติดต่อ AI เพื่อคิดสูตรอาหารได้');
+      } finally {
+        setGenerating(false);
+      }
+    },
+    []
+  );
+
   // ดึงรายการวัตถุดิบและคำนวณวันหมดอายุ
   useEffect(() => {
     async function loadExpiringIngredients() {
@@ -114,6 +157,9 @@ function RecipesContent() {
           }
 
           setAllExpiringItems(list);
+          if (list.length > 0) {
+            generateRealRecipes(list, selectedPreferences);
+          }
         } else {
           setAllExpiringItems([]);
         }
@@ -125,7 +171,7 @@ function RecipesContent() {
     }
 
     loadExpiringIngredients();
-  }, [currentHousehold?.id, fridges, supabase]);
+  }, [currentHousehold?.id, fridges, supabase, generateRealRecipes, selectedPreferences]);
 
   // กรองตามตู้เย็นที่ผู้ใช้เลือก (Step 1)
   const activeExpiringList = useMemo(() => {
@@ -144,70 +190,24 @@ function RecipesContent() {
 
   // ลบชิปวัตถุดิบออกจาก AI Prompt
   function removeIngredientChip(id: string) {
-    setAllExpiringItems((prev) => prev.filter((item) => item.id !== id));
+    const updated = allExpiringItems.filter((item) => item.id !== id);
+    setAllExpiringItems(updated);
+    if (updated.length > 0) {
+      generateRealRecipes(updated, selectedPreferences);
+    } else {
+      setRecipes([]);
+    }
   }
 
-  // สุ่มสูตรอาหารใหม่
+  // ให้ AI คิดค้นสูตรอาหารใหม่
   async function handleGenerateAI() {
-    setGenerating(true);
-    setTimeout(() => {
-      setGenerating(false);
-      toast.success('AI คิดค้นสูตรอาหารใหม่จากของใกล้หมดอายุสำเร็จ! ✨');
-    }, 1000);
+    if (activeExpiringList.length === 0) {
+      toast.error('ไม่มีวัตถุดิบใกล้หมดอายุในตู้นี้ให้ AI คิดสูตร');
+      return;
+    }
+    await generateRealRecipes(activeExpiringList, selectedPreferences);
+    toast.success('AI คิดค้นสูตรอาหารใหม่จากของใกล้หมดอายุสำเร็จ! ✨');
   }
-
-  // สูตรอาหารที่ AI แนะนำ (อิงตามวัตถุดิบใกล้หมดอายุในตู้ที่เลือก)
-  const recipes: Recipe[] = useMemo(() => {
-    if (activeExpiringList.length === 0) return [];
-
-    const firstItem = activeExpiringList[0]?.name || 'วัตถุดิบในตู้';
-    const secondItem = activeExpiringList[1]?.name || 'เครื่องปรุงรส';
-    const thirdItem = activeExpiringList[2]?.name || 'ผักเคียง';
-
-    return [
-      {
-        id: 'recipe-1',
-        name: `เมนูกู้ชีพด่วน: ผัด${firstItem}ทรงเครื่อง`,
-        nameEn: `Stir-fried ${firstItem} Special`,
-        tag: '⭐ แนะนำอันดับ 1 (เคลียร์ของด่วน)',
-        time: '15 นาที',
-        difficulty: 'ง่ายมาก',
-        calories: '~290 kcal',
-        imageUrl:
-          'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=80',
-        ingredients: [
-          { name: firstItem, amount: '1 ส่วน', location: activeExpiringList[0]?.fridgeName || 'ในตู้' },
-          { name: secondItem, amount: 'พอประมาณ', location: activeExpiringList[1]?.fridgeName || 'ในตู้' },
-          { name: thirdItem, amount: 'ตามชอบ', location: activeExpiringList[2]?.fridgeName || 'ในตู้' },
-        ],
-        steps: [
-          `เตรียมและหั่น ${firstItem} และ ${secondItem} เป็นชิ้นพอดีคำ`,
-          'ตั้งกระทะใส่น้ำมันเล็กน้อย ผัดวัตถุดิบด้วยไฟกลางจนสุกหอม',
-          'ปรุงรสด้วยซอสและพริกไทย เสิร์ฟร้อนๆ เคลียร์วัตถุดิบได้ทันทีก่อนหมดอายุ',
-        ],
-      },
-      {
-        id: 'recipe-2',
-        name: `ซุปอบอุ่นใจ ใส่${firstItem}`,
-        nameEn: `Hearty Warm Soup with ${firstItem}`,
-        tag: 'เคลียร์ได้หลายอย่าง',
-        time: '20 นาที',
-        difficulty: 'ปานกลาง',
-        calories: '~240 kcal',
-        imageUrl:
-          'https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&q=80',
-        ingredients: [
-          { name: firstItem, amount: '1 ส่วน', location: activeExpiringList[0]?.fridgeName || 'ในตู้' },
-          { name: secondItem, amount: '1 ส่วน', location: activeExpiringList[1]?.fridgeName || 'ในตู้' },
-        ],
-        steps: [
-          'ต้มน้ำซุปให้เดือด ใส่ผักและวัตถุดิบลงไปเคี่ยว',
-          'ปรุงรสกลมกล่อม เคี่ยวไฟอ่อน 10 นาทีจนนุ่ม',
-          'ตักใส่ชาม โรยพริกไทย ทานอุ่นๆ ช่วยลดขยะอาหารได้ 100%',
-        ],
-      },
-    ];
-  }, [activeExpiringList]);
 
   // ทำเมนูนี้เลย -> ตัดสต็อกอัตโนมัติใน Supabase
   async function handleCookAndDeduct(recipe: Recipe) {
@@ -451,8 +451,25 @@ function RecipesContent() {
           </button>
         </div>
 
+        {/* Loading State when Gemini AI is computing */}
+        {generating && (
+          <div className="p-8 rounded-3xl bg-surface-container-low border border-border flex flex-col items-center justify-center text-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-primary-500/15 text-primary-600 flex items-center justify-center text-2xl animate-bounce">
+              🍳
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-heading font-bold text-sm sm:text-base text-foreground">
+                Gemini 3.5 AI กำลังคิดสูตรอาหารสุดพิเศษ...
+              </h3>
+              <p className="text-xs text-muted max-w-sm mx-auto">
+                นำวัตถุดิบใกล้หมดอายุในตู้ของคุณมาวิเคราะห์และจัดทำสูตรอาหารจริงที่ทำได้ทันที
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* 5. AI Recipe Recommendation Cards */}
-        {recipes.length > 0 && (
+        {!generating && recipes.length > 0 && (
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <h2 className="font-heading text-base sm:text-lg font-bold text-on-surface flex items-center gap-2">
@@ -488,7 +505,7 @@ function RecipesContent() {
                       <span className="text-[11px] text-amber-200 block truncate">
                         {r.nameEn}
                       </span>
-                      <h3 className="font-heading font-extrabold text-lg sm:text-xl text-white leading-tight mt-0.5">
+                      <h3 className="font-heading font-bold text-lg sm:text-xl text-white leading-tight mt-0.5">
                         {r.name}
                       </h3>
                     </div>

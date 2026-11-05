@@ -17,7 +17,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [demoLoading, setDemoLoading] = useState(false);
   const [showAnimation, setShowAnimation] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
@@ -63,50 +62,7 @@ export default function LoginPage() {
     }
   }
 
-  // ทดลองใช้งานเป็นบ้านตัวอย่าง (Guest / Demo mode)
-  async function handleGuestDemo() {
-    setDemoLoading(true);
-    try {
-      const demoEmail = 'guest.demo@checktuyen.app';
-      const demoPass = 'demo123456';
 
-      let { data, error } = await supabase.auth.signInWithPassword({
-        email: demoEmail,
-        password: demoPass,
-      });
-
-      if (error) {
-        const signUpRes = await supabase.auth.signUp({
-          email: demoEmail,
-          password: demoPass,
-          options: {
-            data: { display_name: 'ผู้ทดลองใช้งาน 🏡' },
-          },
-        });
-        if (signUpRes.data?.user) {
-          setShowAnimation(true);
-          setTimeout(() => {
-            router.push('/');
-            router.refresh();
-          }, 1200);
-          return;
-        } else {
-          throw error;
-        }
-      }
-
-      if (data?.user) {
-        setShowAnimation(true);
-        setTimeout(() => {
-          router.push('/');
-          router.refresh();
-        }, 1200);
-      }
-    } catch {
-      toast.error('ไม่สามารถเปิดบ้านตัวอย่างได้ในขณะนี้');
-      setDemoLoading(false);
-    }
-  }
 
   return (
     <div className="min-h-screen bg-surface flex flex-col justify-between antialiased">
@@ -279,33 +235,6 @@ export default function LoginPage() {
             </p>
           </div>
         </form>
-
-        {/* Household Guest / Demo Pill */}
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={handleGuestDemo}
-            disabled={demoLoading || showAnimation}
-            className="w-full py-3 px-4 rounded-2xl bg-surface-container-low hover:bg-surface-container border border-border flex items-center justify-between text-left active:scale-[0.99] transition-all shadow-xs"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[20px]">cottage</span>
-              </div>
-              <div>
-                <p className="font-heading font-bold text-xs text-on-surface">
-                  ทดลองใช้งานเป็นบ้านตัวอย่าง
-                </p>
-                <p className="text-[11px] text-on-surface-variant">
-                  สำรวจตู้เย็นตัวอย่างทันที ไม่ต้องสมัคร
-                </p>
-              </div>
-            </div>
-            <span className="material-symbols-outlined text-primary-600 text-[20px]">
-              chevron_right
-            </span>
-          </button>
-        </div>
       </main>
     </div>
   );

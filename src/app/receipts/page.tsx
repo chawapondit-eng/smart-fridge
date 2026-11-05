@@ -188,37 +188,94 @@ export default function ReceiptScannerPage() {
       for (const it of parsedItems) {
         const targetFridge = it.targetFridgeId || defaultFId;
         const autoEmoji = getAutoEmoji(it.name);
+        const itemId =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+                const r = (Math.random() * 16) | 0;
+                const v = c === 'x' ? r : (r & 0x3) | 0x8;
+                return v.toString(16);
+              });
 
-        const { data: insertedItem, error: itemErr } = await supabase
+        // 1. เพิ่มเข้า items table (พร้อม added_by และ fallback)
+        const fullPayload: Record<string, unknown> = {
+          id: itemId,
+          fridge_id: targetFridge,
+          household_id: currentHousehold.id,
+          name: it.name.trim(),
+          quantity: Number(it.quantity) || 1,
+          unit: it.unit.trim() || 'ชิ้น',
+          image_url: autoEmoji,
+          status: 'in_stock',
+          added_by: authUser.id,
+        };
+
+        let { data: insertedItem, error: itemErr } = await supabase
           .from('items')
-          .insert({
+          .insert(fullPayload)
+          .select('id')
+          .maybeSingle();
+
+        if (itemErr) {
+          // Retry without optional columns if column does not exist
+          const retryPayload: Record<string, unknown> = {
+            id: itemId,
             fridge_id: targetFridge,
             household_id: currentHousehold.id,
             name: it.name.trim(),
             quantity: Number(it.quantity) || 1,
             unit: it.unit.trim() || 'ชิ้น',
-            image_url: autoEmoji,
-            status: 'in_stock',
-          })
-          .select('id')
-          .single();
+          };
+          const retryRes = await supabase
+            .from('items')
+            .insert(retryPayload)
+            .select('id')
+            .maybeSingle();
 
-        if (itemErr) throw itemErr;
+          if (retryRes.error) {
+            console.error('Failed to insert item:', retryRes.error);
+            throw new Error(retryRes.error.message || itemErr.message || 'บันทึกสินค้าไม่สำเร็จ');
+          }
+          insertedItem = retryRes.data;
+        }
 
-        if (insertedItem?.id && it.expiryDate) {
+        const finalItemId = insertedItem?.id || itemId;
+
+        // 2. ถ้ามีวันหมดอายุ บันทึกเข้า item_batches
+        if (it.expiryDate) {
           try {
-            await supabase.from('item_batches').insert({
-              item_id: insertedItem.id,
+            const batchId =
+              typeof crypto !== 'undefined' && crypto.randomUUID
+                ? crypto.randomUUID()
+                : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+                    const r = (Math.random() * 16) | 0;
+                    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+                    return v.toString(16);
+                  });
+
+            const bRes = await supabase.from('item_batches').insert({
+              id: batchId,
+              item_id: finalItemId,
               quantity: Number(it.quantity) || 1,
               expiry_date: it.expiryDate,
+              added_by: authUser.id,
             });
-          } catch {
-            // ignore batch error
+
+            if (bRes.error && bRes.error.message?.includes('added_by')) {
+              await supabase.from('item_batches').insert({
+                id: batchId,
+                item_id: finalItemId,
+                quantity: Number(it.quantity) || 1,
+                expiry_date: it.expiryDate,
+              });
+            }
+          } catch (e) {
+            console.warn('Batch insert warning:', e);
           }
         }
       }
 
-      // บันทึกลง Activity Logs
+      // 3. บันทึกลง Activity Logs (สำหรับติดตามและอัปเดตงบประมาณอาหารอัตโนมัติ)
       try {
         const currentUserName = user?.display_name || authUser.email?.split('@')[0] || 'สมาชิก';
         await supabase.from('activity_logs').insert({
@@ -232,14 +289,18 @@ export default function ReceiptScannerPage() {
             total_price: totalPrice,
           },
         });
-      } catch {
-        // ignore log error
+      } catch (e) {
+        console.warn('Activity log insert warning:', e);
       }
 
       toast.success(`บันทึก ${parsedItems.length} รายการเข้าตู้เย็นสำเร็จ! 🎉`);
       router.push('/fridges');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึก';
+    } catch (err: any) {
+      console.error('Error saving receipt items:', err);
+      const msg =
+        err?.message ||
+        err?.details ||
+        (typeof err === 'string' ? err : 'เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่อีกครั้ง');
       toast.error(msg);
     } finally {
       setSubmitting(false);
@@ -394,13 +455,48 @@ export default function ReceiptScannerPage() {
                             onChange={(e) => updateItem(idx, { name: e.target.value })}
                             className="font-sans font-medium text-sm text-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary-500 outline-none w-full truncate"
                           />
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs font-semibold text-primary-500">
-                              ฿{it.price?.toFixed(2) || '0.00'}
-                            </span>
-                            <span className="text-xs text-muted">
-                              • จำนวน {it.quantity} {it.unit}
-                            </span>
+                          <div className="flex items-center flex-wrap gap-2 mt-1">
+                            {/* Editable Price Input */}
+                            <div className="flex items-center gap-1 bg-surface-container px-2.5 py-1 rounded-xl border border-border/80 focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500/20">
+                              <span className="text-xs font-bold text-primary-500">฿</span>
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                value={it.price === 0 ? '' : it.price}
+                                onChange={(e) =>
+                                  updateItem(idx, {
+                                    price: parseFloat(e.target.value) || 0,
+                                  })
+                                }
+                                placeholder="0.00"
+                                title="คลิกเพื่อแก้ไขราคา"
+                                className="w-16 bg-transparent text-xs font-bold text-foreground outline-none"
+                              />
+                            </div>
+
+                            {/* Editable Quantity & Unit */}
+                            <div className="flex items-center gap-1 text-xs text-muted">
+                              <span>จำนวน:</span>
+                              <input
+                                type="number"
+                                min="0.1"
+                                step="1"
+                                value={it.quantity}
+                                onChange={(e) =>
+                                  updateItem(idx, {
+                                    quantity: parseFloat(e.target.value) || 1,
+                                  })
+                                }
+                                className="w-10 bg-surface-container px-1 py-0.5 rounded-lg border border-border/60 text-center font-medium text-xs text-foreground outline-none"
+                              />
+                              <input
+                                type="text"
+                                value={it.unit}
+                                onChange={(e) => updateItem(idx, { unit: e.target.value })}
+                                className="w-12 bg-surface-container px-1 py-0.5 rounded-lg border border-border/60 text-center font-medium text-xs text-foreground outline-none"
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
