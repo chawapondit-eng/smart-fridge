@@ -157,9 +157,6 @@ function RecipesContent() {
           }
 
           setAllExpiringItems(list);
-          if (list.length > 0) {
-            generateRealRecipes(list, selectedPreferences);
-          }
         } else {
           setAllExpiringItems([]);
         }
@@ -171,7 +168,7 @@ function RecipesContent() {
     }
 
     loadExpiringIngredients();
-  }, [currentHousehold?.id, fridges, supabase, generateRealRecipes, selectedPreferences]);
+  }, [currentHousehold?.id, fridges, supabase]);
 
   // กรองตามตู้เย็นที่ผู้ใช้เลือก (Step 1)
   const activeExpiringList = useMemo(() => {
@@ -192,14 +189,9 @@ function RecipesContent() {
   function removeIngredientChip(id: string) {
     const updated = allExpiringItems.filter((item) => item.id !== id);
     setAllExpiringItems(updated);
-    if (updated.length > 0) {
-      generateRealRecipes(updated, selectedPreferences);
-    } else {
-      setRecipes([]);
-    }
   }
 
-  // ให้ AI คิดค้นสูตรอาหารใหม่
+  // ให้ AI คิดค้นสูตรอาหารใหม่ (ทำงานเฉพาะเมื่อผู้ใช้กดปุ่มเท่านั้น!)
   async function handleGenerateAI() {
     if (activeExpiringList.length === 0) {
       toast.error('ไม่มีวัตถุดิบใกล้หมดอายุในตู้นี้ให้ AI คิดสูตร');
@@ -468,7 +460,24 @@ function RecipesContent() {
           </div>
         )}
 
-        {/* 5. AI Recipe Recommendation Cards */}
+        {/* 5. State before user presses the button */}
+        {!generating && recipes.length === 0 && (
+          <div className="p-8 rounded-3xl bg-surface-container-low border border-border flex flex-col items-center justify-center text-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-primary-500/15 text-primary-600 flex items-center justify-center text-2xl">
+              👨‍🍳
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-heading font-bold text-sm sm:text-base text-foreground">
+                พร้อมเริ่มคิดสูตรอาหารแล้วหรือยัง?
+              </h3>
+              <p className="text-xs text-muted max-w-sm mx-auto">
+                เลือกวัตถุดิบและความชอบด้านบน แล้วกดปุ่ม &quot;ให้ AI คิดสูตรอาหารเดี๋ยวนี้&quot; เพื่อให้ Gemini คำนวณสูตรอาหารจริงให้คุณ
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 6. AI Recipe Recommendation Cards */}
         {!generating && recipes.length > 0 && (
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
