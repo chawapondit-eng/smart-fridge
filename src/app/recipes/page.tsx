@@ -20,6 +20,7 @@ import {
   Plus,
   RefreshCw,
 } from 'lucide-react';
+import { getAutoEmoji } from '@/components/inventory/EditProductModal';
 import type { Item, ItemBatch } from '@/types/database';
 
 interface ExpiringIngredient {
@@ -498,25 +499,53 @@ function RecipesContent() {
                   key={r.id}
                   className="flex flex-col rounded-3xl bg-surface-container-lowest shadow-sm border border-border overflow-hidden hover:shadow-md transition"
                 >
-                  <div className="relative w-full h-44 sm:h-52 overflow-hidden bg-surface-container">
-                    <img
-                      src={r.imageUrl}
-                      alt={r.name}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
-
-                    <div className="absolute top-3 left-3 flex items-center gap-1 px-3 py-1 rounded-full bg-primary-500 text-white text-xs font-bold shadow-md">
-                      <span>{r.tag}</span>
+                  {/* Recipe Flow Diagram Header (แผนภาพผสมผสานวัตถุดิบกู้ชีพ) */}
+                  <div className="bg-gradient-to-br from-surface-container-high/80 via-surface-container-low to-surface-container-lowest border-b border-border/80 p-5 sm:p-6 space-y-3.5">
+                    {/* Top Row: Tag & AI Sparkle */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-500 text-white text-xs font-semibold shadow-xs">
+                        <span>{r.tag}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] font-semibold text-primary-500 bg-primary-500/10 border border-primary-500/25 px-2.5 py-1 rounded-full">
+                        <Sparkles className="w-3.5 h-3.5 text-primary-500 animate-pulse" />
+                        <span>สูตรคิดค้นโดย AI</span>
+                      </div>
                     </div>
 
-                    <div className="absolute bottom-3 left-4 right-4 text-white">
-                      <span className="text-[11px] text-amber-200 block truncate">
+                    {/* Menu Title */}
+                    <div className="space-y-0.5">
+                      <span className="text-xs text-muted block truncate font-sans">
                         {r.nameEn}
                       </span>
-                      <h3 className="font-heading font-bold text-lg sm:text-xl text-white leading-tight mt-0.5">
+                      <h3 className="font-heading font-bold text-xl sm:text-2xl text-foreground leading-snug">
                         {r.name}
                       </h3>
+                    </div>
+
+                    {/* Flow Diagram: Recipe Ingredient Synthesis */}
+                    <div className="p-3.5 rounded-2xl bg-surface-container/70 border border-border/70 space-y-2">
+                      <span className="text-[11px] font-semibold text-muted flex items-center gap-1.5">
+                        <span>🔄</span>
+                        <span>แผนภาพผสมผสานวัตถุดิบกู้ชีพ:</span>
+                      </span>
+                      <div className="flex items-center flex-wrap gap-2 pt-0.5">
+                        {r.ingredients.map((ing, iIdx) => (
+                          <React.Fragment key={iIdx}>
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container-lowest border border-border/80 text-xs font-medium text-foreground shadow-2xs">
+                              <span className="text-sm">{getAutoEmoji(ing.name)}</span>
+                              <span className="truncate max-w-[140px]">{ing.name}</span>
+                            </div>
+                            {iIdx < r.ingredients.length - 1 && (
+                              <span className="text-primary-500 font-bold text-sm select-none">+</span>
+                            )}
+                          </React.Fragment>
+                        ))}
+                        <span className="text-primary-500 font-bold text-base select-none px-0.5">➔</span>
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary-500/15 border border-primary-500/35 text-xs font-semibold text-primary-500 shadow-2xs">
+                          <span>🍳</span>
+                          <span>{r.name.length > 22 ? r.name.slice(0, 20) + '...' : r.name}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
