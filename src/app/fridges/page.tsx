@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useHousehold } from '@/contexts/HouseholdContext';
 import { createClient } from '@/lib/supabase/client';
@@ -37,7 +37,7 @@ interface ItemWithBatches extends Item {
   daysLeft?: number | null;
 }
 
-export default function FridgesPage() {
+function FridgesContent() {
   const router = useRouter();
   const supabase = createClient();
   const { currentHousehold, fridges, authUser, user, refreshFridges } = useHousehold();
@@ -50,6 +50,8 @@ export default function FridgesPage() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [search, setSearch] = useState<string>('');
 
+  const searchParams = useSearchParams();
+
   // Modals
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAddFridge, setShowAddFridge] = useState(false);
@@ -57,6 +59,13 @@ export default function FridgesPage() {
   const [deletingItem, setDeletingItem] = useState<ItemWithBatches | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showRestock, setShowRestock] = useState(true);
+
+  // ตรวจสอบ query param ?add=true จาก Bottom Navigation
+  useEffect(() => {
+    if (searchParams.get('add') === 'true') {
+      setShowAddProduct(true);
+    }
+  }, [searchParams]);
 
   // ดึงข้อมูล Items และ Batches
   const fetchInventory = useCallback(async () => {
@@ -270,6 +279,8 @@ export default function FridgesPage() {
 
   const urgentCount = inStockItems.filter((i) => i.daysLeft !== null && i.daysLeft !== undefined && i.daysLeft <= 2).length;
 
+  const householdTitleName = currentHousehold?.name || user?.display_name || authUser?.email?.split('@')[0] || 'ของฉัน';
+
   return (
     <MainLayout>
       <div className="flex flex-col w-full pb-12 gap-5 animate-in fade-in duration-300">
@@ -277,7 +288,7 @@ export default function FridgesPage() {
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col">
             <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight">
-              จัดการสต็อกตู้เย็น ❄️
+              ตู้เย็น บ้านคุณ{householdTitleName} ❄️
             </h1>
             <p className="text-xs sm:text-sm text-on-surface-variant mt-0.5">
               {currentHousehold?.name || 'ครัวในบ้าน'} •{' '}
@@ -396,24 +407,6 @@ export default function FridgesPage() {
                 {cat.label}
               </button>
             ))}
-          </div>
-        </div>
-
-        {/* Expiry Status Mini Legend Strip */}
-        <div className="p-3 rounded-2xl bg-surface-container-lowest/80 border border-border flex items-center justify-between gap-2 shadow-xs text-xs font-semibold">
-          <div className="flex items-center gap-1.5 text-tertiary-600">
-            <span className="w-2.5 h-2.5 rounded-full bg-tertiary-500 animate-pulse" />
-            <span>1-2 วัน (ด่วน)</span>
-          </div>
-          <div className="w-px h-3.5 bg-border" />
-          <div className="flex items-center gap-1.5 text-amber-600">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-            <span>3-5 วัน</span>
-          </div>
-          <div className="w-px h-3.5 bg-border" />
-          <div className="flex items-center gap-1.5 text-secondary-600">
-            <span className="w-2.5 h-2.5 rounded-full bg-secondary-500" />
-            <span>&gt; 5 วัน (สดใหม่)</span>
           </div>
         </div>
 
@@ -689,5 +682,13 @@ export default function FridgesPage() {
         />
       )}
     </MainLayout>
+  );
+}
+
+export default function FridgesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-surface" />}>
+      <FridgesContent />
+    </Suspense>
   );
 }

@@ -7,9 +7,11 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { useHousehold } from '@/contexts/HouseholdContext';
 import { createClient } from '@/lib/supabase/client';
 import { SkeletonCard, SkeletonRow } from '@/components/ui/LoadingSkeleton';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { AddProductModal } from '@/components/inventory/AddProductModal';
 import { FridgeModal } from '@/components/fridge/FridgeModal';
+import { ShareHouseholdModal } from '@/components/household/ShareHouseholdModal';
+import { EditBudgetModal } from '@/components/budget/EditBudgetModal';
+import { fetchWeeklyBudgetSummary, type WeeklyBudgetSummary } from '@/lib/budget';
 import toast from 'react-hot-toast';
 import {
   Refrigerator,
@@ -25,6 +27,8 @@ import {
   ArrowRight,
   Eye,
   CheckCircle,
+  Share2,
+  Edit2,
 } from 'lucide-react';
 import type { Item, ActivityLog, Fridge } from '@/types/database';
 
@@ -44,9 +48,22 @@ export default function DashboardPage() {
   const [memberCount, setMemberCount] = useState<number>(1);
   const [loadingData, setLoadingData] = useState<boolean>(true);
 
+  // Real Budget Summary state
+  const [budgetSummary, setBudgetSummary] = useState<WeeklyBudgetSummary>({
+    budget: 3000,
+    totalSpent: 0,
+    remaining: 3000,
+    percentUsed: 0,
+    receiptCount: 0,
+    supermarketSpent: 0,
+    deliverySpent: 0,
+  });
+
   // Modals
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAddFridge, setShowAddFridge] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showEditBudgetModal, setShowEditBudgetModal] = useState(false);
   const [selectedFridgeId, setSelectedFridgeId] = useState<string | undefined>(undefined);
 
   const fetchDashboardData = useCallback(async () => {
@@ -148,6 +165,10 @@ export default function DashboardPage() {
       if (count !== null) {
         setMemberCount(count);
       }
+
+      // 5. โหลดข้อมูล Real Weekly Budget
+      const summary = await fetchWeeklyBudgetSummary(supabase, currentHousehold.id);
+      setBudgetSummary(summary);
     } catch (err) {
       console.error('Error fetching dashboard data:', (err as { message?: string })?.message || err);
     } finally {
@@ -163,7 +184,8 @@ export default function DashboardPage() {
   const totalItemsCount = items.reduce((acc, curr) => acc + (Number(curr.quantity) > 0 ? 1 : 0), 0);
   const urgentExpiring = expiringItems.filter((i) => i.daysLeft <= 2);
   const warningExpiring = expiringItems.filter((i) => i.daysLeft > 2 && i.daysLeft <= 4);
-  const householdCode = currentHousehold?.id ? `#TY-${currentHousehold.id.slice(0, 6).toUpperCase()}` : '#TY-8842';
+  const rawCode = currentHousehold?.id || '';
+  const householdCode = rawCode.startsWith('#TY-') ? rawCode : `#TY-${rawCode.slice(0, 6).toUpperCase()}`;
 
   // คำนวณจำนวนไอเทมในแต่ละตู้เย็น
   const fridgeItemsCountMap = useMemo(() => {
@@ -211,37 +233,39 @@ export default function DashboardPage() {
             </div>
 
             {/* Quick Invite Button */}
-            <Link
-              href="/household"
+            <button
+              type="button"
+              onClick={() => setShowShareModal(true)}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-primary-100 hover:bg-primary-500 text-primary-800 hover:text-white transition-all duration-200 shadow-xs shrink-0 active:scale-95 text-xs font-bold"
             >
-              <UserPlus className="w-4 h-4" />
-              <span className="hidden xs:inline">เชิญสมาชิก</span>
-            </Link>
+              <Share2 className="w-4 h-4" />
+              <span className="hidden xs:inline">แชร์รหัสบ้าน</span>
+            </button>
           </div>
 
           {/* Active Household Context Chip + Share Pin */}
           {currentHousehold && (
             <div className="flex items-center justify-between bg-surface-container-low px-3.5 py-2.5 rounded-2xl border border-border/60">
-              <Link
-                href="/household"
-                className="flex items-center gap-2 text-on-surface hover:text-primary-600 transition"
+              <button
+                type="button"
+                onClick={() => setShowShareModal(true)}
+                className="flex items-center gap-2 text-on-surface hover:text-primary-600 transition text-left"
+                title="คลิกเพื่อดูและแชร์รหัสบ้าน"
               >
                 <span className="material-symbols-outlined text-[20px] text-primary-600">cottage</span>
                 <span className="font-heading font-bold text-sm truncate max-w-[150px] sm:max-w-xs">
                   {currentHousehold.name}
                 </span>
-                <span className="material-symbols-outlined text-[16px] text-muted">expand_more</span>
-              </Link>
+                <span className="text-[11px] font-semibold text-primary-600 underline ml-1">
+                  (กดเพื่อแชร์รหัส)
+                </span>
+              </button>
 
               <button
                 type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(currentHousehold.id);
-                  toast.success(`คัดลอกรหัสบ้าน ${householdCode} แล้ว!`);
-                }}
+                onClick={() => setShowShareModal(true)}
                 className="flex items-center gap-1.5 bg-surface-container-lowest px-3 py-1 rounded-full shadow-xs text-on-surface-variant border border-border/80 hover:border-primary-500 transition active:scale-95"
-                title="คลิกเพื่อคัดลอกรหัสบ้าน"
+                title="คลิกเพื่อแชร์รหัสบ้าน"
               >
                 <span className="text-[11px] font-semibold text-muted">รหัสบ้าน:</span>
                 <span className="text-xs font-extrabold text-primary-600 tracking-wider">
@@ -282,8 +306,11 @@ export default function DashboardPage() {
 
         {/* Section 3: Summary Metric Bento Cards */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-          {/* Card 1: Refrigerator Count */}
-          <div className="flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest shadow-sm border border-border">
+          {/* Card 1: Refrigerator Count (Dynamic count as requested) */}
+          <Link
+            href="/fridges"
+            className="flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest shadow-sm border border-border hover:border-primary-400 transition"
+          >
             <div className="flex items-center justify-between">
               <span className="w-9 h-9 rounded-2xl bg-primary-100 flex items-center justify-center text-primary-700">
                 <Refrigerator className="w-5 h-5" />
@@ -294,7 +321,7 @@ export default function DashboardPage() {
             </div>
             <div className="mt-4">
               <span className="font-heading text-2xl font-extrabold text-on-surface tracking-tight block">
-                {fridges.length} ตู้
+                {fridges.length} ตู้เย็น
               </span>
               <span className="text-xs text-on-surface-variant truncate block mt-0.5">
                 {fridges.length > 0
@@ -302,7 +329,7 @@ export default function DashboardPage() {
                   : 'ยังไม่มีตู้เย็น'}
               </span>
             </div>
-          </div>
+          </Link>
 
           {/* Card 2: Expiring Soon Alert */}
           <Link
@@ -338,35 +365,44 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          {/* Card 3: Weekly Grocery Budget Tracker */}
-          <div className="flex flex-col p-4 sm:p-5 rounded-3xl bg-surface-container-lowest shadow-sm border border-border gap-2">
+          {/* Card 3: Weekly Grocery Budget Tracker (100% REAL DATA, NO FAKE!) */}
+          <div
+            onClick={() => setShowEditBudgetModal(true)}
+            className="flex flex-col p-4 sm:p-5 rounded-3xl bg-surface-container-lowest shadow-sm border border-border gap-2 cursor-pointer hover:border-primary-400 transition group"
+            title="คลิกเพื่อตั้งค่าหรือแก้ไขงบประมาณ"
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-9 h-9 rounded-2xl bg-primary-100 flex items-center justify-center text-primary-700">
                   <Wallet className="w-5 h-5" />
                 </span>
-                <span className="font-heading font-bold text-xs text-on-surface">
-                  งบอาหารสัปดาห์นี้
+                <span className="font-heading font-bold text-xs text-on-surface flex items-center gap-1">
+                  <span>งบอาหารสัปดาห์นี้</span>
+                  <Edit2 className="w-3 h-3 text-muted group-hover:text-primary-600 transition" />
                 </span>
               </div>
               <span className="text-[11px] font-bold text-primary-600 dark:text-primary-300 bg-primary-500/15 border border-primary-500/25 px-2 py-0.5 rounded-full">
-                เหลือ ฿550
+                เหลือ ฿{budgetSummary.remaining.toLocaleString()}
               </span>
             </div>
             <div className="flex items-baseline justify-between mt-1">
               <div className="flex items-baseline gap-1">
                 <span className="font-heading text-xl font-extrabold text-on-surface">
-                  ฿2,450
+                  ฿{budgetSummary.totalSpent.toLocaleString()}
                 </span>
-                <span className="text-xs text-on-surface-variant">/ ฿3,000</span>
+                <span className="text-xs text-on-surface-variant">
+                  / ฿{budgetSummary.budget.toLocaleString()}
+                </span>
               </div>
-              <span className="text-[11px] text-on-surface-variant font-medium">82% ที่ใช้ไป</span>
+              <span className="text-[11px] text-on-surface-variant font-medium">
+                {budgetSummary.percentUsed}% ที่ใช้ไป
+              </span>
             </div>
             {/* Segmented Bar */}
             <div className="w-full bg-surface-container rounded-full h-2 overflow-hidden mt-1">
               <div
                 className="bg-primary-500 h-full rounded-full transition-all duration-500"
-                style={{ width: '81.6%' }}
+                style={{ width: `${Math.min(100, budgetSummary.percentUsed)}%` }}
               />
             </div>
           </div>
@@ -477,7 +513,7 @@ export default function DashboardPage() {
                     {/* Actions */}
                     <div className="flex items-center gap-2 pt-1 border-t border-border/50">
                       <Link
-                        href={`/fridges/${f.id}`}
+                        href={`/fridges`}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-bold transition active:scale-98"
                       >
                         <Eye className="w-3.5 h-3.5 text-primary-600" />
@@ -489,7 +525,7 @@ export default function DashboardPage() {
                         className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold shadow-xs active:scale-98 transition"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>+ เพิ่มของ</span>
+                        <span>เพิ่มของ</span>
                       </button>
                     </div>
                   </div>
@@ -499,7 +535,7 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* Section 5: Recent Household Activity Feed */}
+        {/* Section 5: Recent Household Activity Feed (Keep as-is: "อันนี้ดีแล้ว") */}
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h2 className="font-heading text-base sm:text-lg font-bold text-on-surface">
@@ -622,6 +658,31 @@ export default function DashboardPage() {
         isOpen={showAddFridge}
         onClose={() => setShowAddFridge(false)}
       />
+
+      {/* Share Household Modal */}
+      <ShareHouseholdModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        household={currentHousehold}
+      />
+
+      {/* Edit Budget Modal */}
+      {currentHousehold && (
+        <EditBudgetModal
+          isOpen={showEditBudgetModal}
+          onClose={() => setShowEditBudgetModal(false)}
+          householdId={currentHousehold.id}
+          currentBudget={budgetSummary.budget}
+          onSuccess={(newBudget) => {
+            setBudgetSummary((prev) => ({
+              ...prev,
+              budget: newBudget,
+              remaining: Math.max(0, newBudget - prev.totalSpent),
+              percentUsed: newBudget > 0 ? Math.min(100, Math.round((prev.totalSpent / newBudget) * 100)) : 0,
+            }));
+          }}
+        />
+      )}
     </MainLayout>
   );
 }

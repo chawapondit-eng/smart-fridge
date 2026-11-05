@@ -17,8 +17,11 @@ import {
   ZoomIn,
   Plus,
   Trash2,
+  Edit2,
 } from 'lucide-react';
 import { getAutoEmoji } from '@/components/inventory/EditProductModal';
+import { EditBudgetModal } from '@/components/budget/EditBudgetModal';
+import { fetchWeeklyBudgetSummary, type WeeklyBudgetSummary } from '@/lib/budget';
 
 interface ParsedReceiptItem {
   id: string;
@@ -43,6 +46,28 @@ export default function ReceiptScannerPage() {
   const [storeName, setStoreName] = useState<string>('ซูเปอร์มาร์เก็ต');
   const [submitting, setSubmitting] = useState(false);
   const [showZoomModal, setShowZoomModal] = useState(false);
+  const [showEditBudgetModal, setShowEditBudgetModal] = useState(false);
+
+  // Real Budget State
+  const [budgetSummary, setBudgetSummary] = useState<WeeklyBudgetSummary>({
+    budget: 3000,
+    totalSpent: 0,
+    remaining: 3000,
+    percentUsed: 0,
+    receiptCount: 0,
+    supermarketSpent: 0,
+    deliverySpent: 0,
+  });
+
+  const loadBudget = React.useCallback(async () => {
+    if (!currentHousehold?.id) return;
+    const summary = await fetchWeeklyBudgetSummary(supabase, currentHousehold.id);
+    setBudgetSummary(summary);
+  }, [currentHousehold?.id, supabase]);
+
+  useEffect(() => {
+    loadBudget();
+  }, [loadBudget]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -235,16 +260,12 @@ export default function ReceiptScannerPage() {
       <div className="flex flex-col w-full pb-12 gap-5 animate-in fade-in duration-300">
         {/* Header Banner */}
         <div className="flex items-start justify-between bg-surface-container-low rounded-3xl p-5 sm:p-6 border border-border shadow-xs">
-          <div className="space-y-1.5 max-w-[80%]">
-            <div className="inline-flex items-center gap-1.5 bg-surface-container-high text-on-surface-variant px-3 py-1 rounded-full text-xs font-bold">
-              <Sparkles className="w-3.5 h-3.5 text-primary-600" />
-              <span>ระบบถอดข้อความอัจฉริยะ</span>
-            </div>
+          <div className="space-y-1 max-w-[80%]">
             <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight">
               สแกนใบเสร็จด้วย AI 🧾
             </h1>
             <p className="text-xs sm:text-sm text-on-surface-variant">
-              เช็คยอดไว แม่นยำ ไม่ต้องนั่งพิมพ์รายการอาหารทีละชิ้น
+              เช็คยอดไว แม่นยำ บันทึกของเข้าตู้เย็นอัตโนมัติ
             </p>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-primary-500/15 border border-primary-500/30 flex items-center justify-center shrink-0 text-primary-600 dark:text-primary-400 shadow-xs">
@@ -260,12 +281,9 @@ export default function ReceiptScannerPage() {
             </span>
           </div>
 
-          <h2 className="font-heading font-bold text-base sm:text-lg text-on-surface mb-1">
+          <h2 className="font-heading font-bold text-base sm:text-lg text-on-surface mb-4">
             ถ่ายรูปหรืออัปโหลดสลิปใบเสร็จ
           </h2>
-          <p className="text-xs text-on-surface-variant max-w-sm mb-5 leading-relaxed">
-            รองรับสลิปทั้ง Lotus&apos;s, Tops Market, 7-Eleven, Big C และ GrabMart / LINE MAN
-          </p>
 
           {/* Action Buttons */}
           <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
@@ -471,7 +489,7 @@ export default function ReceiptScannerPage() {
           </div>
         )}
 
-        {/* Budget Tracking Card */}
+        {/* Budget Tracking Card (100% REAL DATA, NO FAKE!) */}
         <div className="bg-surface-container-lowest rounded-3xl p-5 sm:p-6 shadow-sm border border-border space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -482,58 +500,111 @@ export default function ReceiptScannerPage() {
                 การติดตามงบอาหารสัปดาห์นี้
               </h3>
             </div>
-            <span className="text-[11px] text-muted">รีเซ็ตทุกวันจันทร์</span>
+            <button
+              type="button"
+              onClick={() => setShowEditBudgetModal(true)}
+              className="flex items-center gap-1 text-xs font-bold text-primary-600 hover:underline px-2.5 py-1 rounded-full bg-primary-50 dark:bg-primary-950/40 border border-primary-200 dark:border-primary-900 transition"
+            >
+              <Edit2 className="w-3 h-3" />
+              <span>ตั้งค่างบ</span>
+            </button>
           </div>
 
           <div className="space-y-2">
             <div className="flex items-baseline justify-between">
               <div>
                 <span className="font-heading text-xl sm:text-2xl font-extrabold text-on-surface">
-                  ฿2,450
+                  ฿{budgetSummary.totalSpent.toLocaleString()}
                 </span>
-                <span className="text-xs text-on-surface-variant font-medium"> / ฿3,000</span>
+                <span className="text-xs text-on-surface-variant font-medium">
+                  {' '}
+                  / ฿{budgetSummary.budget.toLocaleString()}
+                </span>
               </div>
-              <span className="text-xs font-bold text-primary-700 bg-primary-100 px-2.5 py-0.5 rounded-full">
-                เหลือ ฿550
+              <span className="text-xs font-bold text-primary-700 bg-primary-100 dark:bg-primary-900/40 dark:text-primary-300 px-2.5 py-0.5 rounded-full">
+                {budgetSummary.remaining > 0
+                  ? `เหลือ ฿${budgetSummary.remaining.toLocaleString()}`
+                  : `เกินงบ ฿${Math.abs(budgetSummary.budget - budgetSummary.totalSpent).toLocaleString()}`}
               </span>
             </div>
 
             {/* Segmented Bar */}
             <div className="h-3 w-full bg-surface-container rounded-full overflow-hidden flex">
-              <div className="h-full bg-primary-500 rounded-l-full" style={{ width: '61.25%' }} />
-              <div className="h-full bg-amber-400" style={{ width: '20.41%' }} />
-              <div className="h-full bg-surface-container-highest" style={{ width: '18.34%' }} />
+              {budgetSummary.totalSpent > 0 ? (
+                <>
+                  <div
+                    className="h-full bg-primary-500 rounded-l-full transition-all duration-500"
+                    style={{
+                      width: `${budgetSummary.budget > 0 ? Math.min(100, Math.round((budgetSummary.supermarketSpent / budgetSummary.budget) * 100)) : 0}%`,
+                    }}
+                  />
+                  <div
+                    className="h-full bg-amber-400 transition-all duration-500"
+                    style={{
+                      width: `${budgetSummary.budget > 0 ? Math.min(100, Math.round((budgetSummary.deliverySpent / budgetSummary.budget) * 100)) : 0}%`,
+                    }}
+                  />
+                </>
+              ) : (
+                <div className="h-full bg-surface-container-high w-full" />
+              )}
             </div>
 
             {/* Breakdown Legend */}
-            <div className="grid grid-cols-2 gap-2 pt-1 text-xs text-on-surface">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-primary-500" />
-                <span>ซูเปอร์มาร์เก็ต: <strong>฿1,837 (75%)</strong></span>
+            {budgetSummary.totalSpent > 0 ? (
+              <div className="grid grid-cols-2 gap-2 pt-1 text-xs text-on-surface">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-primary-500" />
+                  <span>
+                    ซูเปอร์มาร์เก็ต:{' '}
+                    <strong>
+                      ฿{budgetSummary.supermarketSpent.toLocaleString()} (
+                      {budgetSummary.totalSpent > 0
+                        ? Math.round((budgetSummary.supermarketSpent / budgetSummary.totalSpent) * 100)
+                        : 0}
+                      %)
+                    </strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                  <span>
+                    เดลิเวอรี/Grab:{' '}
+                    <strong>
+                      ฿{budgetSummary.deliverySpent.toLocaleString()} (
+                      {budgetSummary.totalSpent > 0
+                        ? Math.round((budgetSummary.deliverySpent / budgetSummary.totalSpent) * 100)
+                        : 0}
+                      %)
+                    </strong>
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                <span>เดลิเวอรี/Grab: <strong>฿613 (25%)</strong></span>
-              </div>
-            </div>
-          </div>
-
-          {/* Savings Insight Box */}
-          <div className="bg-secondary-500/15 border border-secondary-500/30 rounded-2xl p-3.5 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-secondary-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-              <span className="material-symbols-outlined text-[20px]">eco</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-heading font-bold text-xs text-secondary-600 dark:text-secondary-400">
-                ยอดเยี่ยม! วัตถุดิบไม่เน่าเสีย
-              </span>
-              <p className="text-xs text-on-surface-variant dark:text-stone-300 mt-0.5 leading-relaxed">
-                สัปดาห์นี้ระบบแจ้งเตือนช่วยให้คุณประหยัดงบได้ถึง{' '}
-                <strong className="text-secondary-600 dark:text-secondary-400 font-bold">฿420</strong>
+            ) : (
+              <p className="text-xs text-muted pt-1">
+                ยังไม่มีการบันทึกค่าใช้จ่ายในสัปดาห์นี้ เริ่มถ่ายรูปใบเสร็จเพื่อติดตามงบอาหารได้เลย
               </p>
-            </div>
+            )}
           </div>
         </div>
+
+        {/* Edit Budget Modal */}
+        {currentHousehold && (
+          <EditBudgetModal
+            isOpen={showEditBudgetModal}
+            onClose={() => setShowEditBudgetModal(false)}
+            householdId={currentHousehold.id}
+            currentBudget={budgetSummary.budget}
+            onSuccess={(newBudget) => {
+              setBudgetSummary((prev) => ({
+                ...prev,
+                budget: newBudget,
+                remaining: Math.max(0, newBudget - prev.totalSpent),
+                percentUsed: newBudget > 0 ? Math.min(100, Math.round((prev.totalSpent / newBudget) * 100)) : 0,
+              }));
+            }}
+          />
+        )}
 
         {/* Zoom Modal */}
         {showZoomModal && previewUrl && (

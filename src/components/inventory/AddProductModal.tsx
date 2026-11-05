@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useHousehold } from '@/contexts/HouseholdContext';
 import toast from 'react-hot-toast';
-import { X, Plus, Sparkles, Upload } from 'lucide-react';
+import { X, Plus, Sparkles, Upload, Receipt } from 'lucide-react';
 import { getAutoEmoji } from './EditProductModal';
 
 interface AddProductModalProps {
@@ -28,6 +29,7 @@ export function AddProductModal({
   defaultFridgeId,
   onSuccess,
 }: AddProductModalProps) {
+  const router = useRouter();
   const supabase = createClient();
   const { currentHousehold, fridges, authUser, user } = useHousehold();
 
@@ -39,6 +41,8 @@ export function AddProductModal({
   const [imageUrl, setImageUrl] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const targetFridge = fridges.find((f) => f.id === (fridgeId || defaultFridgeId || fridges[0]?.id));
 
   if (!isOpen) return null;
 
@@ -218,18 +222,33 @@ export function AddProductModal({
           <X className="w-4 h-4" />
         </button>
 
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center shrink-0">
             <Plus className="w-5 h-5" />
           </div>
           <div>
             <h3 className="text-lg font-bold tracking-tight text-foreground">
-              เพิ่มสินค้าลงตู้เย็น
+              เพิ่มสินค้าลง: {targetFridge ? targetFridge.name : 'ตู้เย็น'}
             </h3>
             <p className="text-xs text-muted">
-              กรอกข้อมูลของสดหรืออาหารที่ต้องการจัดเก็บ
+              กรอกข้อมูลของสดหรืออาหารเพื่อติดตามวันหมดอายุ
             </p>
           </div>
+        </div>
+
+        {/* Quick Receipt Scan Action */}
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              router.push(`/receipts${targetFridge ? `?fridgeId=${targetFridge.id}` : ''}`);
+            }}
+            className="w-full py-2.5 px-4 rounded-xl border border-primary-200 dark:border-primary-900 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98 shadow-xs"
+          >
+            <Receipt className="w-4 h-4 text-primary-600" />
+            <span>🧾 สแกนใบเสร็จนำเข้าตู้เย็นอัตโนมัติ</span>
+          </button>
         </div>
 
         {/* Quick Presets */}

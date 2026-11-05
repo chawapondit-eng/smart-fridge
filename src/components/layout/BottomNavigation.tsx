@@ -3,15 +3,15 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Refrigerator, Receipt, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Refrigerator, PlusCircle, Sparkles } from 'lucide-react';
 
 export function BottomNavigation() {
   const pathname = usePathname();
 
   const items = [
-    { name: 'ภาพรวม', href: '/', icon: LayoutDashboard },
-    { name: 'ตู้เย็น & คลัง', href: '/fridges', icon: Refrigerator },
-    { name: 'สแกนสลิป', href: '/receipts', icon: Receipt },
+    { name: 'หน้าหลัก', href: '/', icon: LayoutDashboard },
+    { name: 'ตู้เย็นของฉัน', href: '/fridges', icon: Refrigerator },
+    { name: 'เพิ่มวัตถุดิบ', href: '/fridges?add=true', icon: PlusCircle },
     { name: 'เมนู AI', href: '/recipes', icon: Sparkles },
   ];
 
@@ -22,6 +22,8 @@ export function BottomNavigation() {
           const isActive =
             item.href === '/'
               ? pathname === '/'
+              : item.href === '/fridges?add=true'
+              ? false
               : pathname.startsWith(item.href);
           const Icon = item.icon;
 
@@ -29,7 +31,7 @@ export function BottomNavigation() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center justify-center gap-1 min-w-[72px] py-1.5 px-3 rounded-2xl transition-all duration-200 active:scale-95 ${
+              className={`flex flex-col items-center justify-center gap-1 min-w-[70px] py-1.5 px-2.5 rounded-2xl transition-all duration-200 active:scale-95 ${
                 isActive
                   ? 'bg-primary-500 text-white font-bold shadow-md shadow-primary-500/25'
                   : 'text-on-surface-variant hover:text-foreground'
