@@ -287,10 +287,10 @@ function FridgesContent() {
         {/* Top Ambient Banner & Stats Pulse */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col">
-            <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight">
+            <h1 className="font-heading text-xl sm:text-2xl font-bold text-foreground">
               ตู้เย็น บ้านคุณ{householdTitleName} ❄️
             </h1>
-            <p className="text-xs sm:text-sm text-on-surface-variant mt-0.5">
+            <p className="text-xs sm:text-sm text-muted mt-0.5">
               {currentHousehold?.name || 'ครัวในบ้าน'} •{' '}
               {urgentCount > 0 ? (
                 <span className="text-tertiary-600 font-bold">

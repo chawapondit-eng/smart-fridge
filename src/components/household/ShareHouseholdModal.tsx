@@ -72,19 +72,19 @@ export function ShareHouseholdModal({
         </div>
 
         {/* Title & Household Name */}
-        <h3 className="font-heading font-extrabold text-lg text-foreground">
+        <h3 className="font-heading font-bold text-lg text-foreground">
           รหัสแชร์ครัวเรือน
         </h3>
         <p className="text-xs text-muted mt-0.5">
-          ตู้เย็น บ้านคุณ{household.name}
+          ตู้เย็น บ้านคุณ{currentH.name}
         </p>
 
         {/* Share Code Card */}
         <div className="my-5 p-4 rounded-2xl bg-surface-container-low border border-border/80 flex flex-col items-center justify-center gap-1.5 shadow-inner">
-          <span className="text-[11px] font-bold text-muted uppercase tracking-wider">
+          <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">
             รหัสเข้าร่วมตู้เย็น (Household Code)
           </span>
-          <span className="font-heading font-extrabold text-2xl tracking-widest text-primary-600 select-all">
+          <span className="font-sans font-bold text-2xl tracking-widest text-primary-600 select-all">
             {displayCode}
           </span>
           <span className="text-[10px] text-muted">

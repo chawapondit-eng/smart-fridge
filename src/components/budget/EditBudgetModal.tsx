@@ -54,7 +54,7 @@ export function EditBudgetModal({
             <Wallet className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-heading font-extrabold text-base text-foreground">
+            <h3 className="font-heading font-bold text-base text-foreground">
               ตั้งค่างบประมาณสัปดาห์นี้
             </h3>
             <p className="text-xs text-muted">
@@ -65,7 +65,7 @@ export function EditBudgetModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-muted uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-1.5">
               งบประมาณ (บาท / สัปดาห์)
             </label>
             <div className="relative flex items-center rounded-2xl bg-surface-container-low border border-border px-3.5 py-2.5 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20">
@@ -77,7 +77,7 @@ export function EditBudgetModal({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="เช่น 3000"
-                className="w-full bg-transparent font-heading font-extrabold text-lg text-foreground outline-none"
+                className="w-full bg-transparent font-sans font-bold text-lg text-foreground outline-none"
                 autoFocus
                 required
               />
@@ -112,3 +112,4 @@ export function EditBudgetModal({
     </div>
   );
 }
+

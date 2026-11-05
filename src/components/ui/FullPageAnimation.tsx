@@ -60,12 +60,12 @@ export function FullPageAnimation({
         </div>
 
         {/* Title */}
-        <h2 className="font-heading font-extrabold text-xl sm:text-2xl text-on-surface tracking-tight mb-2">
+        <h2 className="font-heading font-bold text-xl sm:text-2xl text-foreground mb-2">
           {title || defaultTitle}
         </h2>
 
         {/* Subtitle */}
-        <p className="text-xs sm:text-sm text-on-surface-variant max-w-xs leading-relaxed mb-6">
+        <p className="text-xs sm:text-sm text-muted max-w-xs leading-relaxed mb-6">
           {subtitle || defaultSubtitle}
         </p>
 
@@ -79,3 +79,4 @@ export function FullPageAnimation({
     </div>
   );
 }
+

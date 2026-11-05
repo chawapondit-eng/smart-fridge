@@ -221,11 +221,11 @@ export default function DashboardPage() {
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-col min-w-0">
-              <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight flex items-center gap-2">
+              <h1 className="font-heading text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
                 <span>สวัสดีคุณ{displayName}</span>
                 <span className="text-secondary-600">🌿</span>
               </h1>
-              <p className="text-xs sm:text-sm text-on-surface-variant mt-0.5">
+              <p className="text-xs sm:text-sm text-muted mt-0.5">
                 {totalItemsCount > 0
                   ? `วันนี้วัตถุดิบในบ้านพร้อมทำอาหาร ${Math.min(95, 70 + totalItemsCount * 3)}%`
                   : 'เริ่มต้นเพิ่มตู้เย็นและบันทึกวัตถุดิบในบ้านของคุณได้เลย'}
@@ -320,10 +320,10 @@ export default function DashboardPage() {
               </span>
             </div>
             <div className="mt-4">
-              <span className="font-heading text-2xl font-extrabold text-on-surface tracking-tight block">
+              <span className="font-heading text-xl sm:text-2xl font-bold text-foreground block">
                 {fridges.length} ตู้เย็น
               </span>
-              <span className="text-xs text-on-surface-variant truncate block mt-0.5">
+              <span className="text-xs text-muted truncate block mt-0.5">
                 {fridges.length > 0
                   ? fridges.map((f) => f.name).join(' • ')
                   : 'ยังไม่มีตู้เย็น'}
@@ -349,10 +349,10 @@ export default function DashboardPage() {
             </div>
             <div className="mt-4">
               <div className="flex items-baseline gap-1.5">
-                <span className="font-heading text-2xl font-extrabold text-tertiary-600 tracking-tight">
+                <span className="font-heading text-xl sm:text-2xl font-bold text-tertiary-600">
                   {expiringItems.length}
                 </span>
-                <span className="text-xs font-bold text-on-surface">รายการใกล้หมด</span>
+                <span className="text-xs font-semibold text-foreground">รายการใกล้หมด</span>
               </div>
               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-tertiary-100 text-tertiary-800">
@@ -373,28 +373,28 @@ export default function DashboardPage() {
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="w-9 h-9 rounded-2xl bg-primary-100 flex items-center justify-center text-primary-700">
+                <span className="w-9 h-9 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center">
                   <Wallet className="w-5 h-5" />
                 </span>
-                <span className="font-heading font-bold text-xs text-on-surface flex items-center gap-1">
+                <span className="font-heading font-semibold text-xs text-foreground flex items-center gap-1">
                   <span>งบอาหารสัปดาห์นี้</span>
                   <Edit2 className="w-3 h-3 text-muted group-hover:text-primary-600 transition" />
                 </span>
               </div>
-              <span className="text-[11px] font-bold text-primary-600 dark:text-primary-300 bg-primary-500/15 border border-primary-500/25 px-2 py-0.5 rounded-full">
+              <span className="text-[11px] font-semibold text-primary-600 dark:text-primary-300 bg-primary-500/15 border border-primary-500/25 px-2 py-0.5 rounded-full">
                 เหลือ ฿{budgetSummary.remaining.toLocaleString()}
               </span>
             </div>
             <div className="flex items-baseline justify-between mt-1">
               <div className="flex items-baseline gap-1">
-                <span className="font-heading text-xl font-extrabold text-on-surface">
+                <span className="font-heading text-xl sm:text-2xl font-bold text-foreground">
                   ฿{budgetSummary.totalSpent.toLocaleString()}
                 </span>
-                <span className="text-xs text-on-surface-variant">
+                <span className="text-xs text-muted">
                   / ฿{budgetSummary.budget.toLocaleString()}
                 </span>
               </div>
-              <span className="text-[11px] text-on-surface-variant font-medium">
+              <span className="text-[11px] text-muted font-medium">
                 {budgetSummary.percentUsed}% ที่ใช้ไป
               </span>
             </div>

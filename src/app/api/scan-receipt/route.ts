@@ -5,6 +5,7 @@ interface ParsedItem {
   name: string;
   quantity: number;
   unit: string;
+  price?: number;
   confidence: number;
 }
 
@@ -155,7 +156,12 @@ export async function POST(req: NextRequest) {
 
     // 1. ถ้ามี Gemini API Key ให้ใช้ Gemini Vision AI
     if (apiKey) {
-      const modelsToTry = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+      const modelsToTry = [
+        'gemini-3.5-flash',
+        'gemini-3.5-flash-lite',
+        'gemini-3.7-flash',
+        'gemini-3.8-flash',
+      ];
       let lastGeminiErr = '';
 
       for (const model of modelsToTry) {
@@ -183,6 +189,7 @@ export async function POST(req: NextRequest) {
     "name": "ชื่อสินค้าภาษาไทยตามที่ปรากฏในใบเสร็จ เช่น ข้าวผัดพริกกระเพรา หรือ ข้าวเปล่า",
     "quantity": 1,
     "unit": "หน่วยนับที่เหมาะสม เช่น จาน, กล่อง, ขวด, แพ็ก, ชิ้น, ถุง",
+    "price": 45.0,
     "confidence": 0.95
   }
 ]
@@ -215,6 +222,7 @@ export async function POST(req: NextRequest) {
                 name: String(item.name || '').trim(),
                 quantity: Number(item.quantity) || 1,
                 unit: String(item.unit || guessUnit(String(item.name || ''))).trim(),
+                price: Number(item.price) || 0,
                 confidence: Number(item.confidence) || 0.95,
               }));
 

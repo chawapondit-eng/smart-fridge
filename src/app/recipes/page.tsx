@@ -258,10 +258,10 @@ function RecipesContent() {
         {/* 1. Header Banner (Cleaned up, no Zero-Waste clutter) */}
         <div className="flex items-start justify-between bg-surface-container-low rounded-3xl p-5 sm:p-6 border border-border shadow-xs">
           <div className="space-y-1">
-            <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight">
+            <h1 className="font-heading text-xl sm:text-2xl font-bold text-foreground">
               ปรุงมื้ออร่อย เคลียร์ของในตู้ 🍲
             </h1>
-            <p className="text-xs sm:text-sm text-on-surface-variant">
+            <p className="text-xs sm:text-sm text-muted">
               ดึงเฉพาะวัตถุดิบใกล้หมดอายุมาคิดสูตร ลดขยะอาหารและประหยัดค่าใช้จ่าย
             </p>
           </div>

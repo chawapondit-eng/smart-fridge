@@ -113,7 +113,7 @@ export default function ReceiptScannerPage() {
             ? 7
             : it.name.includes('ผัก')
             ? 3
-            : it.name.includes('เนื้อ') || it.name.includes('ไก่')
+            : it.name.includes('เนื้อ') || it.name.includes('ไก่') || it.name.includes('หมู')
             ? 4
             : it.name.includes('ไข่')
             ? 14
@@ -128,7 +128,7 @@ export default function ReceiptScannerPage() {
             name: it.name || 'สินค้า',
             quantity: Number(it.quantity) || 1,
             unit: it.unit || 'ชิ้น',
-            price: it.price || Math.floor(Math.random() * 50) + 30,
+            price: Number(it.price) || 0,
             expiryDate: expDate,
             targetFridgeId: defaultFId,
             confidence: it.confidence || 0.95,
@@ -139,18 +139,9 @@ export default function ReceiptScannerPage() {
         if (data.store) setStoreName(data.store);
         toast.success(`AI ตรวจพบ ${mapped.length} รายการจากใบเสร็จ! ✨`);
       } else {
-        // Fallback demo items ถ้าใบเสร็จอ่านยาก
-        const defaultFId = fridges[0]?.id || '';
-        const fallback: ParsedReceiptItem[] = [
-          { id: '1', name: 'นมสดพาสเจอร์ไรส์ 830มล', quantity: 1, unit: 'ขวด', price: 49.5, expiryDate: '2026-11-10', targetFridgeId: defaultFId, confidence: 0.98 },
-          { id: '2', name: 'ไข่ไก่สดคัดพิเศษ 10 ฟอง', quantity: 1, unit: 'แพ็ค', price: 78.0, expiryDate: '2026-11-18', targetFridgeId: defaultFId, confidence: 0.95 },
-          { id: '3', name: 'โยเกิร์ต รสธรรมชาติ', quantity: 4, unit: 'ถ้วย', price: 60.0, expiryDate: '2026-11-15', targetFridgeId: defaultFId, confidence: 0.92 },
-          { id: '4', name: 'ผักสลัดไฮโดรโปนิกส์', quantity: 1, unit: 'ถุง', price: 45.0, expiryDate: '2026-11-08', targetFridgeId: defaultFId, confidence: 0.9 },
-        ];
-        setParsedItems(fallback);
-        toast('ตรวจพบรายการอาหารจากใบเสร็จเรียบร้อย', { icon: '🧾' });
+        toast.error(data.error || 'ไม่สามารถอ่านข้อความจากใบเสร็จได้ กรุณาลองถ่ายภาพใหม่ให้ตรงและคมชัดขึ้น');
       }
-    } catch (err) {
+    } catch {
       toast.error('ไม่สามารถอ่านใบเสร็จได้ กรุณาลองใหม่อีกครั้ง');
     } finally {
       setScanning(false);
@@ -261,10 +252,10 @@ export default function ReceiptScannerPage() {
         {/* Header Banner */}
         <div className="flex items-start justify-between bg-surface-container-low rounded-3xl p-5 sm:p-6 border border-border shadow-xs">
           <div className="space-y-1 max-w-[80%]">
-            <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight">
+            <h1 className="font-heading text-xl sm:text-2xl font-semibold text-foreground">
               สแกนใบเสร็จด้วย AI 🧾
             </h1>
-            <p className="text-xs sm:text-sm text-on-surface-variant">
+            <p className="text-xs sm:text-sm text-muted">
               เช็คยอดไว แม่นยำ บันทึกของเข้าตู้เย็นอัตโนมัติ
             </p>
           </div>
@@ -281,7 +272,7 @@ export default function ReceiptScannerPage() {
             </span>
           </div>
 
-          <h2 className="font-heading font-bold text-base sm:text-lg text-on-surface mb-4">
+          <h2 className="font-heading font-semibold text-base sm:text-lg text-foreground mb-4">
             ถ่ายรูปหรืออัปโหลดสลิปใบเสร็จ
           </h2>
 
@@ -401,13 +392,13 @@ export default function ReceiptScannerPage() {
                             type="text"
                             value={it.name}
                             onChange={(e) => updateItem(idx, { name: e.target.value })}
-                            className="font-heading font-bold text-xs sm:text-sm text-on-surface bg-transparent border-b border-transparent hover:border-border focus:border-primary-500 outline-none w-full truncate"
+                            className="font-sans font-medium text-sm text-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary-500 outline-none w-full truncate"
                           />
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs font-bold text-primary-600">
+                            <span className="text-xs font-semibold text-primary-500">
                               ฿{it.price?.toFixed(2) || '0.00'}
                             </span>
-                            <span className="text-xs text-on-surface-variant">
+                            <span className="text-xs text-muted">
                               • จำนวน {it.quantity} {it.unit}
                             </span>
                           </div>
@@ -417,7 +408,7 @@ export default function ReceiptScannerPage() {
                       <button
                         type="button"
                         onClick={() => removeItem(idx)}
-                        className="text-muted hover:text-tertiary-600 p-1 rounded-full transition"
+                        className="text-muted hover:text-tertiary-600 p-1.5 rounded-full hover:bg-surface-container transition"
                         title="ลบรายการนี้"
                       >
                         <X className="w-4 h-4" />
@@ -426,26 +417,26 @@ export default function ReceiptScannerPage() {
 
                     <div className="grid grid-cols-2 gap-2 pt-1">
                       {/* Expiry Selector */}
-                      <div className="bg-surface-container-lowest rounded-xl px-2.5 py-1.5 flex items-center justify-between border border-border text-xs">
+                      <div className="bg-surface-container rounded-xl px-3 py-1.5 flex items-center justify-between border border-border/70 text-xs">
                         <span className="text-muted text-[11px]">หมดอายุ:</span>
                         <input
                           type="date"
                           value={it.expiryDate || ''}
                           onChange={(e) => updateItem(idx, { expiryDate: e.target.value })}
-                          className="bg-transparent font-bold text-xs text-foreground outline-none"
+                          className="bg-transparent font-medium text-xs text-foreground outline-none"
                         />
                       </div>
 
                       {/* Fridge Selector */}
-                      <div className="bg-surface-container-lowest rounded-xl px-2.5 py-1.5 flex items-center justify-between border border-border text-xs">
+                      <div className="bg-surface-container rounded-xl px-3 py-1.5 flex items-center justify-between border border-border/70 text-xs">
                         <span className="text-muted text-[11px]">ตู้:</span>
                         <select
                           value={it.targetFridgeId || fridges[0]?.id || ''}
                           onChange={(e) => updateItem(idx, { targetFridgeId: e.target.value })}
-                          className="bg-transparent font-bold text-xs text-foreground outline-none max-w-[100px] truncate"
+                          className="bg-transparent font-medium text-xs text-foreground outline-none max-w-[110px] truncate"
                         >
                           {fridges.map((f) => (
-                            <option key={f.id} value={f.id}>
+                            <option key={f.id} value={f.id} className="bg-card text-foreground">
                               {f.name}
                             </option>
                           ))}
@@ -458,14 +449,14 @@ export default function ReceiptScannerPage() {
             </div>
 
             {/* Receipt Total Summary */}
-            <div className="bg-surface-container-high rounded-2xl p-4 flex items-center justify-between border border-border/80">
-              <div className="flex items-center gap-2 text-on-surface">
-                <Receipt className="w-5 h-5 text-primary-600" />
-                <span className="text-xs sm:text-sm font-semibold">
+            <div className="bg-surface-container rounded-2xl p-4 flex items-center justify-between border border-border/80">
+              <div className="flex items-center gap-2 text-foreground">
+                <Receipt className="w-5 h-5 text-primary-500" />
+                <span className="text-xs sm:text-sm font-medium">
                   ยอดรวมใบเสร็จ ({parsedItems.length} รายการ)
                 </span>
               </div>
-              <span className="font-heading text-lg sm:text-xl text-primary-700 font-extrabold">
+              <span className="font-heading text-lg sm:text-xl text-primary-500 font-bold">
                 ฿{totalPrice.toFixed(2)}
               </span>
             </div>
