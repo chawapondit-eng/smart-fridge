@@ -4,15 +4,14 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard,
-  CalendarDays,
+  Home,
+  Refrigerator,
   Plus,
-  BarChart3,
+  Users,
   User,
   X,
   Receipt,
   Clock,
-  Home,
   History,
   Settings,
   Camera,
@@ -53,7 +52,7 @@ export function BottomNavigation() {
         className="md:hidden fixed bottom-0 inset-x-0 z-40 pb-safe bg-white/95 dark:bg-card/95 backdrop-blur-xl border-t border-border shadow-[0_-4px_20px_rgba(37,37,37,0.06)]"
       >
         <div className="grid grid-cols-5 items-center h-16 px-1 max-w-lg mx-auto">
-          {/* 1. Dashboard (แดชบอร์ด) */}
+          {/* 1. Home (หน้าหลัก) */}
           <Link
             href="/"
             className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-2xl transition-all active:scale-95 ${
@@ -62,13 +61,13 @@ export function BottomNavigation() {
                 : 'text-on-surface-variant hover:text-foreground'
             }`}
           >
-            <LayoutDashboard
+            <Home
               className={`w-5 h-5 ${pathname === '/' ? 'stroke-[2.5] text-primary-600' : ''}`}
             />
-            <span className="text-[10px] leading-tight">แดชบอร์ด</span>
+            <span className="text-[10px] leading-tight">หน้าหลัก</span>
           </Link>
 
-          {/* 2. Diary / Fridges (ไดอารี่) */}
+          {/* 2. My Fridges (ตู้เย็นของฉัน) */}
           <Link
             href="/fridges"
             className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-2xl transition-all active:scale-95 ${
@@ -77,10 +76,10 @@ export function BottomNavigation() {
                 : 'text-on-surface-variant hover:text-foreground'
             }`}
           >
-            <CalendarDays
+            <Refrigerator
               className={`w-5 h-5 ${pathname.startsWith('/fridges') ? 'stroke-[2.5] text-primary-600' : ''}`}
             />
-            <span className="text-[10px] leading-tight">ไดอารี่</span>
+            <span className="text-[10px] leading-tight">ตู้เย็นของฉัน</span>
           </Link>
 
           {/* 3. Center Prominent Plus Button (Floating Action) */}
@@ -98,22 +97,22 @@ export function BottomNavigation() {
             </span>
           </div>
 
-          {/* 4. Insights (ข้อมูลเชิงลึก) */}
+          {/* 4. Household Management (จัดการคนภายในบ้าน) */}
           <Link
-            href="/insights"
+            href="/household"
             className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-2xl transition-all active:scale-95 ${
-              pathname.startsWith('/insights')
+              pathname.startsWith('/household')
                 ? 'text-primary-600 font-bold'
                 : 'text-on-surface-variant hover:text-foreground'
             }`}
           >
-            <BarChart3
-              className={`w-5 h-5 ${pathname.startsWith('/insights') ? 'stroke-[2.5] text-primary-600' : ''}`}
+            <Users
+              className={`w-5 h-5 ${pathname.startsWith('/household') ? 'stroke-[2.5] text-primary-600' : ''}`}
             />
-            <span className="text-[10px] leading-tight">ข้อมูลเชิงลึก</span>
+            <span className="text-[10px] leading-tight truncate max-w-[58px]">จัดการบ้าน</span>
           </Link>
 
-          {/* 5. Account / Profile (บัญชี) */}
+          {/* 5. Account / Profile (บัญชี & ตั้งค่า) */}
           <Link
             href="/profile"
             className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-2xl transition-all active:scale-95 ${

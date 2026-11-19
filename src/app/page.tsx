@@ -155,7 +155,7 @@ export default function DashboardPage() {
 
             if (daysLeft < 0) {
               expiredList.push(entry);
-            } else if (daysLeft <= 5) {
+            } else if (daysLeft <= 3) {
               expiringSoonList.push(entry);
             }
           }
@@ -281,6 +281,12 @@ export default function DashboardPage() {
     };
   }, [usableItems, expiringItems, fridges]);
 
+  // รวมรายการเร่งด่วนสำหรับ "รายการที่ควรนำมาใช้ก่อน": ของหมดอายุขึ้นก่อน ตามด้วยของใกล้หมดอายุ เรียงจากเหลือน้อยวันที่สุด
+  const urgentList = useMemo(() => {
+    const list: ExpiringItem[] = [...expiredItems, ...expiringItems];
+    return list.sort((a, b) => a.daysLeft - b.daysLeft);
+  }, [expiredItems, expiringItems]);
+
   function handleCopyHouseholdCode(e: React.MouseEvent) {
     e.stopPropagation();
     if (!householdCode) return;
@@ -298,39 +304,44 @@ export default function DashboardPage() {
   return (
     <MainLayout>
       <div className="flex flex-col w-full pb-10 gap-6 animate-in fade-in duration-300">
-        {/* Section 1: Personalized Warm Greeting & Header matching UI.pdf Page 1 */}
+        {/* =========================================================================
+            Section 1: Personalized Warm Greeting & Household Header (Image 1)
+           ========================================================================= */}
         <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start justify-between gap-3">
             <div className="flex flex-col min-w-0">
               <div className="inline-flex items-center gap-1.5 text-xs font-medium text-muted mb-0.5">
                 <Calendar className="w-3.5 h-3.5 text-primary-600 shrink-0" />
                 <span>{todayThaiDisplay}</span>
               </div>
               <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground tracking-tight flex items-center gap-2">
-                <span>แดชบอร์ด</span>
-                <span className="text-sm font-normal text-muted">สวัสดีคุณ{displayName} 🌿</span>
+                <span>สวัสดีคุณ{displayName}</span>
+                <span className="text-secondary-600">🌿</span>
               </h1>
+              <p className="text-xs text-muted mt-0.5">
+                มีวัตถุดิบทั้งหมด {totalItemsCount} รายการ ใน {fridges.length} ตู้เย็น
+              </p>
             </div>
 
-            {/* Quick Share / House Pill Button matching UI.pdf Top Button */}
+            {/* Quick Share Circle Button matching Image 1 Top Right */}
             <button
               type="button"
               onClick={() => setShowShareModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary-600 hover:bg-primary-700 text-white transition-all duration-200 shadow-sm shrink-0 active:scale-95 text-xs font-bold"
+              className="w-10 h-10 rounded-full bg-primary-600 hover:bg-primary-700 text-white flex items-center justify-center transition shadow-sm shrink-0 active:scale-95 cursor-pointer"
+              title="แชร์รหัสบ้าน"
             >
-              <Share2 className="w-3.5 h-3.5" />
-              <span>แชร์รหัสบ้าน</span>
+              <Share2 className="w-4 h-4" />
             </button>
           </div>
 
           {/* Active Household Context Chip + Share Pin */}
           {currentHousehold && (
-            <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-surface-container-low px-4 py-2.5 rounded-2xl border border-border shadow-2xs">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-low px-4 py-2.5 rounded-2xl border border-border/70 shadow-2xs">
+              <div className="flex items-center gap-3 min-w-0">
                 <button
                   type="button"
                   onClick={() => setShowShareModal(true)}
-                  className="flex items-center gap-2 text-foreground hover:text-primary-600 transition text-left min-w-0"
+                  className="flex items-center gap-2 text-foreground hover:text-primary-600 transition text-left cursor-pointer"
                   title="คลิกเพื่อดูและแชร์รหัสบ้าน"
                 >
                   <span className="material-symbols-outlined text-[20px] text-primary-600 shrink-0">cottage</span>
@@ -338,32 +349,26 @@ export default function DashboardPage() {
                     {currentHousehold.name}
                   </span>
                 </button>
+                <span className="text-muted text-xs">|</span>
                 <Link
                   href="/household"
-                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-stone-100 dark:bg-surface-container text-[11px] font-medium text-muted hover:text-foreground transition shrink-0"
+                  className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition shrink-0"
                   title="จัดการสมาชิกในบ้าน"
                 >
-                  <Users className="w-3 h-3" />
+                  <Users className="w-3.5 h-3.5" />
                   <span>{memberCount} คน</span>
                 </Link>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowShareModal(true)}
-                  className="flex items-center gap-1.5 bg-stone-50 dark:bg-surface-container-lowest px-3 py-1 rounded-full text-on-surface-variant border border-border hover:border-primary-500 transition active:scale-95"
-                  title="คลิกเพื่อดูและแชร์รหัสบ้าน"
-                >
-                  <span className="text-[11px] font-semibold text-muted">รหัสบ้าน:</span>
-                  <span className="text-xs font-bold text-primary-600 tracking-wider">
-                    {householdCode}
-                  </span>
-                </button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted">รหัสบ้าน:</span>
+                <span className="text-xs font-bold text-primary-600 tracking-wider">
+                  {householdCode}
+                </span>
                 <button
                   type="button"
                   onClick={handleCopyHouseholdCode}
-                  className="w-7 h-7 rounded-full bg-stone-50 dark:bg-surface-container-lowest border border-border hover:border-primary-500 flex items-center justify-center text-muted hover:text-primary-600 transition active:scale-95"
+                  className="p-1 rounded-lg hover:bg-surface-container text-muted hover:text-foreground transition active:scale-95 cursor-pointer"
                   title="คัดลอกรหัสบ้าน"
                 >
                   {copiedCode ? (
@@ -377,177 +382,14 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* Section 2: Circular Summary Card matching UI.pdf Page 1 */}
-        <section className="p-6 rounded-[28px] bg-white dark:bg-surface-container-lowest border border-border shadow-xs flex flex-col gap-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-heading font-bold text-base sm:text-lg text-foreground">
-                ความสดใหม่ของวัตถุดิบ (Smart Health)
-              </h2>
-              <p className="text-xs text-muted">
-                ภาพรวมความสดใหม่และวันหมดอายุของวัตถุดิบทั้งหมดในบ้าน
-              </p>
-            </div>
-            <Link
-              href="/expirations"
-              className="p-1.5 rounded-full hover:bg-stone-100 dark:hover:bg-surface-container text-muted hover:text-foreground transition"
-              title="ดูวันหมดอายุทั้งหมด"
-            >
-              <span className="material-symbols-outlined text-[20px]">more_horiz</span>
-            </Link>
-          </div>
-
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 py-2">
-            {/* Circular Ring SVG Donut Chart matching UI.pdf */}
-            <div className="relative w-40 h-40 sm:w-48 sm:h-48 shrink-0 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                {/* Background Ring Track */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  className="stroke-stone-100 dark:stroke-stone-800"
-                  strokeWidth="8"
-                  fill="transparent"
-                />
-                {/* Fresh Arc (Emerald) */}
-                {totalItemsCount > 0 && (
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="40"
-                    className="stroke-emerald-500 transition-all duration-700"
-                    strokeWidth="8"
-                    strokeDasharray={`${(freshItemsCount / totalItemsCount) * 251.3} 251.3`}
-                    strokeDashoffset="0"
-                    strokeLinecap="round"
-                    fill="transparent"
-                  />
-                )}
-                {/* Expiring Arc (Amber) */}
-                {totalItemsCount > 0 && expiringSoonCount > 0 && (
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="40"
-                    className="stroke-amber-500 transition-all duration-700"
-                    strokeWidth="8"
-                    strokeDasharray={`${(expiringSoonCount / totalItemsCount) * 251.3} 251.3`}
-                    strokeDashoffset={`${-((freshItemsCount / totalItemsCount) * 251.3)}`}
-                    strokeLinecap="round"
-                    fill="transparent"
-                  />
-                )}
-                {/* Expired Arc (Red) */}
-                {totalItemsCount > 0 && expiredCount > 0 && (
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="40"
-                    className="stroke-rose-500 transition-all duration-700"
-                    strokeWidth="8"
-                    strokeDasharray={`${(expiredCount / totalItemsCount) * 251.3} 251.3`}
-                    strokeDashoffset={`${-(((freshItemsCount + expiringSoonCount) / totalItemsCount) * 251.3)}`}
-                    strokeLinecap="round"
-                    fill="transparent"
-                  />
-                )}
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-2">
-                <span className="font-heading text-3xl sm:text-4xl font-bold text-foreground">
-                  {totalItemsCount > 0 ? `${Math.round((freshItemsCount / totalItemsCount) * 100)}%` : '0'}
-                </span>
-                <span className="text-[11px] font-semibold text-muted leading-tight mt-0.5">
-                  ยังสดใหม่พร้อมปรุง
-                </span>
-              </div>
-            </div>
-
-            {/* Breakdown Column matching UI.pdf Right Column */}
-            <div className="grid grid-cols-2 gap-2.5 w-full flex-1 min-w-[200px]">
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50 dark:bg-surface-container-low border border-border/70">
-                <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                  <span className="w-6 h-6 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center text-xs">🎯</span>
-                  <span>ทั้งหมด</span>
-                </div>
-                <span className="font-heading text-base font-bold text-foreground">{totalItemsCount}</span>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-emerald-50/70 dark:bg-surface-container-low border border-emerald-100/70">
-                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-                  <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs">🥦</span>
-                  <span>ยังสดใหม่</span>
-                </div>
-                <span className="font-heading text-base font-bold text-emerald-700 dark:text-emerald-300">{freshItemsCount}</span>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-amber-50/70 dark:bg-surface-container-low border border-amber-100/70">
-                <div className="flex items-center gap-2 text-xs font-semibold text-amber-800 dark:text-amber-300">
-                  <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs">⏳</span>
-                  <span>ใกล้หมด</span>
-                </div>
-                <span className="font-heading text-base font-bold text-amber-700 dark:text-amber-300">{expiringSoonCount}</span>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-rose-50/70 dark:bg-surface-container-low border border-rose-100/70">
-                <div className="flex items-center gap-2 text-xs font-semibold text-rose-800 dark:text-rose-300">
-                  <span className="w-6 h-6 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center text-xs">⚠️</span>
-                  <span>หมดอายุ</span>
-                </div>
-                <span className="font-heading text-base font-bold text-rose-700 dark:text-rose-300">{expiredCount}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Sub-card Row matching UI.pdf collapsible status */}
-          <div className="pt-3 border-t border-border/60 flex items-center justify-between text-xs text-muted">
-            <span className="flex items-center gap-1.5 font-medium">
-              <Refrigerator className="w-4 h-4 text-primary-600" />
-              <span>ข้อมูลสุขภาพวัตถุดิบในบ้าน (ใน {fridges.length} ตู้เย็น)</span>
-            </span>
-            <Link href="/fridges" className="text-primary-600 font-semibold hover:underline flex items-center gap-0.5">
-              <span>ดูตู้เย็น</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-        </section>
-
-        {/* Section 2.5: Mascot AI Recommendation Banner matching UI.pdf Page 1 */}
-        {dailyRecipeTeaser && (
-          <section className="p-5 rounded-[28px] bg-gradient-to-r from-orange-100/80 via-amber-50/80 to-orange-50/80 border border-orange-200/60 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5 text-center sm:text-left">
-              <div className="w-12 h-12 rounded-2xl bg-white text-2xl flex items-center justify-center shrink-0 shadow-xs">
-                🥕
-              </div>
-              <div>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-orange-800 px-2 py-0.5 rounded-full bg-orange-200/50 mb-0.5">
-                  🍲 เมนู AI ประจำมื้อนี้
-                </span>
-                <h3 className="font-heading font-bold text-base text-foreground">
-                  {dailyRecipeTeaser.dishTitle}
-                </h3>
-                <p className="text-xs text-stone-600 mt-0.5">
-                  ใช้วัตถุดิบสดพร้อมปรุงในตู้ของคุณ ปลอดภัย คัดกรองของหมดอายุออก 100%
-                </p>
-              </div>
-            </div>
-
-            <Link
-              href={`/recipes?ingredient=${encodeURIComponent(dailyRecipeTeaser.leadName)}&fridgeId=${encodeURIComponent(dailyRecipeTeaser.fridgeId)}`}
-              className="px-4 py-2.5 rounded-full bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition shrink-0"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>สุ่มเมนูนี้ใน AI Recipe →</span>
-            </Link>
-          </section>
-        )}
-
-        {/* Section 2: Quick Action Highlights (Pill Triggers) */}
-        <section className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+        {/* =========================================================================
+            Section 2: Quick Action Highlights (3 Pills matching Image 1)
+           ========================================================================= */}
+        <section className="flex items-center gap-2.5 overflow-x-auto no-scrollbar py-0.5">
           <button
             type="button"
             onClick={() => handleOpenAddProduct()}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-sm hover:opacity-95 active:scale-95 transition-all shrink-0 text-xs sm:text-sm font-bold"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary-600 hover:bg-primary-700 text-white shadow-sm active:scale-95 transition-all shrink-0 text-xs sm:text-sm font-bold cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span className="whitespace-nowrap">เพิ่มวัตถุดิบ</span>
@@ -555,7 +397,7 @@ export default function DashboardPage() {
 
           <Link
             href="/receipts"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-surface-container-lowest text-on-surface border border-border shadow-xs hover:bg-surface-container-low active:scale-95 transition-all shrink-0 text-xs sm:text-sm font-bold"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-surface-container border border-border hover:bg-surface-container-high text-foreground shadow-2xs active:scale-95 transition-all shrink-0 text-xs sm:text-sm font-bold cursor-pointer"
           >
             <Receipt className="w-4 h-4 text-primary-600" />
             <span className="whitespace-nowrap">🧾 สแกนบิล OCR</span>
@@ -563,104 +405,106 @@ export default function DashboardPage() {
 
           <Link
             href="/recipes"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-secondary-fixed text-on-secondary-fixed shadow-xs hover:bg-secondary-200 active:scale-95 transition-all shrink-0 text-xs sm:text-sm font-bold"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-emerald-950/60 text-emerald-300 border border-emerald-800/40 hover:bg-emerald-900/60 shadow-2xs active:scale-95 transition-all shrink-0 text-xs sm:text-sm font-bold cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 text-secondary-700" />
-            <span className="whitespace-nowrap">🍲 สุ่มเมนู AI</span>
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            <span className="whitespace-nowrap">🪄 สุ่มเมนู AI</span>
           </Link>
         </section>
 
-        {/* Section 3: Master Responsive Split Grid (12-Col Desktop / 1-Col Mobile) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-start">
-          {/* Main Inventory & Operations Area (7-8 Cols on Desktop) */}
-          <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-5 sm:gap-6 min-w-0">
-            {/* 4 Summary KPI Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {/* KPI 1: Fridges & Total Items */}
-              <Link
-                href="/fridges"
-                className="flex flex-col justify-between p-4 rounded-3xl bg-surface-container-lowest shadow-sm border border-border hover:border-primary-400 transition"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="w-9 h-9 rounded-2xl bg-primary-100 dark:bg-primary-950/60 flex items-center justify-center text-primary-700 dark:text-primary-300">
-                    <Package className="w-4 h-4" />
-                  </span>
-                  <span className="text-[11px] font-bold text-muted">
-                    {fridges.length} ตู้เย็น
-                  </span>
-                </div>
-                <div className="mt-3">
-                  <span className="font-heading text-2xl font-bold text-foreground block">
-                    {totalItemsCount}
-                  </span>
-                  <span className="text-xs text-muted">วัตถุดิบทั้งหมด</span>
-                </div>
-              </Link>
-
-              {/* KPI 2: Fresh Items */}
-              <Link
-                href="/fridges"
-                className="flex flex-col justify-between p-4 rounded-3xl bg-surface-container-lowest shadow-sm border border-border hover:border-secondary-500/50 transition"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="w-9 h-9 rounded-2xl bg-secondary-100 dark:bg-secondary-950/60 flex items-center justify-center text-secondary-700 dark:text-secondary-300">
-                    <Leaf className="w-4 h-4" />
-                  </span>
-                  <span className="text-[11px] font-bold text-secondary-600">สดใหม่</span>
-                </div>
-                <div className="mt-3">
-                  <span className="font-heading text-2xl font-bold text-secondary-600 block">
-                    {freshItemsCount}
-                  </span>
-                  <span className="text-xs text-muted">ยังสดใหม่</span>
-                </div>
-              </Link>
-
-              {/* KPI 3: Expiring Soon (0-5 days) */}
-              <Link
-                href="/expirations"
-                className="flex flex-col justify-between p-4 rounded-3xl bg-surface-container-lowest shadow-sm border border-border hover:border-amber-400 transition"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="w-9 h-9 rounded-2xl bg-amber-500/15 flex items-center justify-center text-amber-600">
-                    <AlarmClock className="w-4 h-4" />
-                  </span>
-                  {expiringSoonCount > 0 && (
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                  )}
-                </div>
-                <div className="mt-3">
-                  <span className="font-heading text-2xl font-bold text-amber-600 block">
-                    {expiringSoonCount}
-                  </span>
-                  <span className="text-xs text-muted">ใกล้หมดอายุ (0-5 วัน)</span>
-                </div>
-              </Link>
-
-              {/* KPI 4: Expired (< 0 days) */}
-              <Link
-                href="/expirations"
-                className="flex flex-col justify-between p-4 rounded-3xl bg-surface-container-lowest shadow-sm border border-border hover:border-tertiary-400 transition"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="w-9 h-9 rounded-2xl bg-tertiary-100 dark:bg-tertiary-950/60 flex items-center justify-center text-tertiary-600">
-                    <AlertTriangle className="w-4 h-4" />
-                  </span>
-                  {expiredCount > 0 && (
-                    <span className="w-2.5 h-2.5 rounded-full bg-tertiary-500 animate-ping" />
-                  )}
-                </div>
-                <div className="mt-3">
-                  <span className="font-heading text-2xl font-bold text-tertiary-600 block">
-                    {expiredCount}
-                  </span>
-                  <span className="text-xs text-muted">หมดอายุแล้ว</span>
-                </div>
-              </Link>
+        {/* =========================================================================
+            Section 3: 4 Stat Cards in 1 Row (matching Image 1)
+           ========================================================================= */}
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* Card 1: วัตถุดิบทั้งหมด */}
+          <Link
+            href="/fridges"
+            className="flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border hover:border-primary-500/50 transition-all shadow-xs group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="w-9 h-9 rounded-2xl bg-primary-500/15 flex items-center justify-center text-primary-600">
+                <Package className="w-4 h-4" />
+              </span>
+              <span className="text-[11px] font-bold text-muted">
+                {fridges.length} ตู้เย็น
+              </span>
             </div>
+            <div className="mt-4">
+              <span className="font-heading text-2xl sm:text-3xl font-bold text-foreground block group-hover:text-primary-600 transition">
+                {totalItemsCount}
+              </span>
+              <span className="text-xs text-muted mt-0.5 block">วัตถุดิบทั้งหมด</span>
+            </div>
+          </Link>
 
-            {/* Priority Use-First Alert Card */}
-            <div className="flex flex-col p-4 sm:p-5 rounded-3xl bg-surface-container-lowest shadow-sm border border-border gap-3">
+          {/* Card 2: ยังสดใหม่ */}
+          <Link
+            href="/fridges"
+            className="flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border hover:border-emerald-500/50 transition-all shadow-xs group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="w-9 h-9 rounded-2xl bg-emerald-500/15 flex items-center justify-center text-emerald-500">
+                <Leaf className="w-4 h-4" />
+              </span>
+              <span className="text-[11px] font-bold text-emerald-500">
+                สดใหม่
+              </span>
+            </div>
+            <div className="mt-4">
+              <span className="font-heading text-2xl sm:text-3xl font-bold text-foreground block group-hover:text-emerald-500 transition">
+                {freshItemsCount}
+              </span>
+              <span className="text-xs text-muted mt-0.5 block">ยังสดใหม่</span>
+            </div>
+          </Link>
+
+          {/* Card 3: ใกล้หมดอายุ (0-3 วัน) */}
+          <Link
+            href="/expirations"
+            className="flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border hover:border-amber-500/50 transition-all shadow-xs group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="w-9 h-9 rounded-2xl bg-amber-500/15 flex items-center justify-center text-amber-500">
+                <AlarmClock className="w-4 h-4" />
+              </span>
+            </div>
+            <div className="mt-4">
+              <span className="font-heading text-2xl sm:text-3xl font-bold text-foreground block group-hover:text-amber-500 transition">
+                {expiringSoonCount}
+              </span>
+              <span className="text-xs text-muted mt-0.5 block">ใกล้หมดอายุ (0-3 วัน)</span>
+            </div>
+          </Link>
+
+          {/* Card 4: หมดอายุแล้ว */}
+          <Link
+            href="/expirations"
+            className="flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border hover:border-rose-500/50 transition-all shadow-xs group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="w-9 h-9 rounded-2xl bg-rose-500/15 flex items-center justify-center text-rose-500">
+                <AlertTriangle className="w-4 h-4" />
+              </span>
+              {expiredCount > 0 && (
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+              )}
+            </div>
+            <div className="mt-4">
+              <span className="font-heading text-2xl sm:text-3xl font-bold text-foreground block group-hover:text-rose-500 transition">
+                {expiredCount}
+              </span>
+              <span className="text-xs text-muted mt-0.5 block">หมดอายุแล้ว</span>
+            </div>
+          </Link>
+        </section>
+
+        {/* =========================================================================
+            Section 4: Priority Use-First & Grocery Budget Side-by-Side (Image 1)
+           ========================================================================= */}
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+          {/* Card Left: รายการที่ควรนำมาใช้ก่อน (lg:col-span-7) */}
+          <div className="lg:col-span-7 flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border gap-3 shadow-xs">
+            <div>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center">
@@ -671,352 +515,101 @@ export default function DashboardPage() {
                       รายการที่ควรนำมาใช้ก่อน
                     </h2>
                     <p className="text-[11px] text-muted">
-                      กดรายการเพื่อเปิดดูในตู้เย็น หรือส่งไปให้ AI แนะนำเมนู
+                      กดรายการเพื่อเปิดดูในตู้เย็น หรือส่งให้ AI แนะนำเมนู
                     </p>
                   </div>
                 </div>
                 <Link
                   href="/recipes"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-500/10 hover:bg-primary-500/20 text-primary-600 dark:text-primary-400 text-xs font-bold transition shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-500/10 hover:bg-primary-500/20 text-primary-600 dark:text-primary-400 text-xs font-bold transition shrink-0 cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>สุ่มเมนู AI</span>
+                  <span>🪄 สุ่มเมนู AI</span>
                 </Link>
               </div>
 
-              {expiringItems.length === 0 && expiredItems.length === 0 ? (
-                <div className="p-4 rounded-2xl bg-surface-container-low/70 border border-border/60 text-xs text-muted flex items-center gap-2">
-                  <span>🌱</span>
-                  <span>ไม่มีวัตถุดิบที่ใกล้หมดอายุหรือหมดอายุในขณะนี้ ของในตู้สดใหม่ดีเยี่ยม!</span>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {expiringItems.slice(0, 4).map((item) => (
-                    <Link
-                      key={item.id}
-                      href={item.fridge_id ? `/fridges/${item.fridge_id}` : '/fridges'}
-                      className="flex items-center justify-between gap-2 p-3 rounded-2xl bg-surface-container-low hover:bg-surface-container border border-border/60 transition"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-xl shrink-0">
-                          {item.image_url && !item.image_url.startsWith('http') && !item.image_url.startsWith('data:')
-                            ? item.image_url
-                            : getAutoEmoji(item.name)}
-                        </span>
-                        <div className="min-w-0">
-                          <span className="text-xs font-bold text-foreground block truncate">
-                            {item.name}
-                          </span>
-                          <span className="text-[11px] text-muted block truncate">
-                            {fridgeNameMap.get(item.fridge_id) || 'ตู้เย็น'} • {formatThaiDate(item.expiry_date)}
-                          </span>
-                        </div>
-                      </div>
-                      <span
-                        className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          item.daysLeft === 0
-                            ? 'bg-orange-500/20 text-orange-700 dark:text-orange-300'
-                            : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                        }`}
-                      >
-                        {formatExpiryShortBadge(item.daysLeft)}
-                      </span>
-                    </Link>
-                  ))}
-                  {expiredItems.slice(0, 2).map((item) => (
-                    <Link
-                      key={`exp-${item.id}`}
-                      href={item.fridge_id ? `/fridges/${item.fridge_id}` : '/expirations'}
-                      className="flex items-center justify-between gap-2 p-3 rounded-2xl bg-tertiary-500/10 hover:bg-tertiary-500/15 border border-tertiary-500/25 transition"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-xl shrink-0">
-                          {item.image_url && !item.image_url.startsWith('http') && !item.image_url.startsWith('data:')
-                            ? item.image_url
-                            : getAutoEmoji(item.name)}
-                        </span>
-                        <div className="min-w-0">
-                          <span className="text-xs font-bold text-foreground block truncate">
-                            {item.name}
-                          </span>
-                          <span className="text-[11px] text-tertiary-600 dark:text-tertiary-300 block truncate">
-                            ควรตรวจสอบ/นำออกจากตู้
-                          </span>
-                        </div>
-                      </div>
-                      <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-tertiary-600 text-white">
-                        {formatExpiryShortBadge(item.daysLeft)}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* My Fridges Compartment Section */}
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <h2 className="font-heading text-base sm:text-lg font-bold text-on-surface flex items-center gap-2">
-                  <span>ตู้เย็นของคุณ</span>
-                  <span className="w-5 h-5 rounded-full bg-surface-container-high font-bold text-xs flex items-center justify-center text-on-surface-variant">
-                    {fridges.length}
-                  </span>
-                </h2>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddFridge(true)}
-                    className="text-xs font-bold text-primary-600 hover:underline flex items-center gap-1"
-                  >
-                    + เพิ่มตู้เย็น
-                  </button>
-                  <Link
-                    href="/fridges"
-                    className="text-xs font-bold text-muted hover:text-foreground flex items-center gap-0.5 ml-2"
-                  >
-                    <span>จัดการตู้</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-              </div>
-
-              {loadingData ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <SkeletonCard />
-                  <SkeletonCard />
-                </div>
-              ) : fridges.length === 0 ? (
-                <div className="p-8 rounded-3xl border border-dashed border-border bg-surface-container-lowest text-center space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-600 flex items-center justify-center mx-auto">
-                    <Refrigerator className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-heading font-bold text-sm text-foreground">
-                    ยังไม่มีตู้เย็นในครัวเรือนนี้
-                  </h3>
-                  <p className="text-xs text-muted max-w-xs mx-auto">
-                    สร้างตู้เย็นใบแรกของคุณเพื่อเริ่มจัดการอาหาร เตือนวันหมดอายุ และสแกนบิล
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddFridge(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 text-white text-xs font-bold shadow-xs active:scale-95 transition"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>สร้างตู้เย็นใหม่</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {fridges.map((f) => {
-                    const itemCount = fridgeItemsCountMap.get(f.id) || 0;
-                    const expCount = fridgeExpiringMap.get(f.id) || 0;
-                    const previewNames = fridgePreviewItemsMap.get(f.id) || [];
-
+              {/* Items List */}
+              <div className="mt-3.5 divide-y divide-border/60">
+                {urgentList.length > 0 ? (
+                  urgentList.slice(0, 3).map((item) => {
+                    const isExpired = item.daysLeft < 0;
+                    const isToday = item.daysLeft === 0;
                     return (
-                      <div
-                        key={f.id}
-                        className="flex flex-col p-4 rounded-3xl bg-surface-container-lowest shadow-sm border border-border gap-3.5 hover:shadow-md transition"
+                      <Link
+                        key={item.id}
+                        href={item.fridge_id ? `/fridges?selected=${item.fridge_id}` : '/fridges'}
+                        className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3 hover:opacity-90 transition group cursor-pointer"
                       >
-                        <div className="flex items-start gap-3.5">
-                          <div className="relative w-14 h-14 rounded-2xl overflow-hidden shrink-0 bg-surface-container-low flex items-center justify-center border border-border text-2xl shadow-inner">
-                            <span>{f.icon || '❄️'}</span>
-                          </div>
-
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-1">
-                              <h3 className="font-heading font-bold text-sm text-on-surface truncate">
-                                {f.name}
-                              </h3>
-                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary-100 text-primary-800 shrink-0">
-                                {itemCount} รายการ
-                              </span>
-                            </div>
-                            <p className="text-xs text-on-surface-variant truncate mt-0.5">
-                              {previewNames.length > 0
-                                ? `${previewNames.join(', ')}${itemCount > previewNames.length ? ` และอีก ${itemCount - previewNames.length} อย่าง` : ''}`
-                                : 'ยังไม่มีวัตถุดิบในตู้นี้'}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              {expCount > 0 ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-tertiary-600">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-tertiary-500 animate-pulse" />
-                                  <span>{expCount} รายการใกล้หมดอายุ</span>
-                                </span>
-                              ) : itemCount > 0 ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-secondary-600">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-secondary-500" />
-                                  <span>วัตถุดิบทั้งหมดยังสดใหม่</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted">
-                                  <span>พร้อมเพิ่มวัตถุดิบ</span>
-                                </span>
-                              )}
-                            </div>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="w-9 h-9 rounded-2xl bg-surface-container flex items-center justify-center text-lg shrink-0">
+                            {getAutoEmoji(item.name)}
+                          </span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-heading font-bold text-sm text-foreground truncate group-hover:text-primary-600 transition">
+                              {item.name}
+                            </span>
+                            <span className="text-[11px] text-muted truncate">
+                              {isExpired
+                                ? 'ควรตรวจสอบ/นำออกจากตู้'
+                                : isToday
+                                ? 'ควรปรุงรับประทานภายในวันนี้'
+                                : `ควรใช้ปรุงอาหารภายใน ${item.daysLeft} วัน`}
+                            </span>
                           </div>
                         </div>
 
-                        {/* Actions */}
-                        <div className="flex items-center gap-2 pt-1 border-t border-border/50">
-                          <Link
-                            href={`/fridges/${f.id}`}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-bold transition active:scale-98"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-primary-600" />
-                            <span>ดูสต็อก</span>
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenAddProduct(f.id)}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold shadow-xs active:scale-98 transition"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>เพิ่มของ</span>
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Recent Activities Section */}
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <h2 className="font-heading text-base sm:text-lg font-bold text-on-surface">
-                  กิจกรรมล่าสุดในบ้าน
-                </h2>
-                <Link
-                  href="/activities"
-                  className="text-xs font-bold text-primary-600 hover:underline flex items-center gap-1"
-                >
-                  <span>ซิงค์เรียลไทม์ ⚡</span>
-                </Link>
-              </div>
-
-              <div className="flex flex-col p-4 rounded-3xl bg-surface-container-lowest shadow-sm border border-border divide-y divide-border/60">
-                {activities.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-muted">
-                    ยังไม่มีประวัติกิจกรรมล่าสุด
-                  </div>
-                ) : (
-                  activities.map((act) => {
-                    const details = act.details as Record<string, unknown> | null;
-                    const userName = (details?.user_name as string) || 'สมาชิก';
-                    const itemName = (details?.item_name as string) || (details?.name as string) || 'สินค้า';
-                    const unit = (details?.unit as string) || 'ชิ้น';
-                    const amount = details?.amount !== undefined ? Number(details.amount) : 1;
-
-                    let actTitle = '';
-                    let badgeNode: React.ReactNode = null;
-                    let iconClass = 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border border-primary-500/25';
-
-                    if (act.action === 'item_added' || act.action === 'quantity_increased') {
-                      actTitle = `เพิ่ม "${itemName}" ${amount} ${unit}`;
-                      badgeNode = (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary-500/15 text-secondary-700 dark:text-secondary-300 border border-secondary-500/25">
-                          +{amount} {unit}
-                        </span>
-                      );
-                      iconClass = 'bg-secondary-500/15 text-secondary-600 dark:text-secondary-400 border border-secondary-500/25';
-                    } else if (act.action === 'quantity_decreased') {
-                      actTitle = `หยิบ "${itemName}" ออก ${amount} ${unit}`;
-                      badgeNode = (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25">
-                          -{amount} {unit}
-                        </span>
-                      );
-                      iconClass = 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25';
-                    } else if (act.action === 'item_removed') {
-                      actTitle = `ลบรายการ "${itemName}" ออกจากตู้`;
-                      iconClass = 'bg-tertiary-500/15 text-tertiary-600 dark:text-tertiary-400 border border-tertiary-500/25';
-                    } else if (act.action === 'member_joined') {
-                      actTitle = `${userName} เข้าร่วมครัวเรือน`;
-                      iconClass = 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border border-primary-500/25';
-                    } else if (act.action === 'receipt_scanned') {
-                      actTitle = `สแกนใบเสร็จเพิ่มวัตถุดิบ`;
-                      iconClass = 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/25';
-                    } else if (act.action === 'fridge_created') {
-                      actTitle = `สร้างตู้เย็นใหม่`;
-                      iconClass = 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border border-primary-500/25';
-                    } else if (act.action === 'item_updated') {
-                      actTitle = `อัปเดตข้อมูล "${itemName}"`;
-                      iconClass = 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25';
-                    } else {
-                      actTitle = `ทำรายการในตู้เย็น`;
-                      iconClass = 'bg-surface-container text-on-surface-variant border border-border';
-                    }
-
-                    return (
-                      <div
-                        key={act.id}
-                        className="py-3 first:pt-0 last:pb-0 flex items-start gap-3"
-                      >
-                        <div
-                          className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 font-bold text-xs ${iconClass}`}
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-xs font-bold shrink-0 border ${
+                            isExpired
+                              ? 'bg-rose-500/15 text-rose-500 border-rose-500/30'
+                              : isToday
+                              ? 'bg-amber-500/15 text-amber-500 border-amber-500/30'
+                              : 'bg-amber-500/15 text-amber-500 border-amber-500/30'
+                          }`}
                         >
-                          {act.action === 'quantity_increased' || act.action === 'item_added'
-                            ? '➕'
-                            : act.action === 'quantity_decreased'
-                            ? '➖'
-                            : act.action === 'item_removed'
-                            ? '🗑️'
-                            : '🏡'}
-                        </div>
-
-                        <div className="flex flex-col min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="text-xs font-bold text-on-surface truncate">
-                              {userName}
-                            </span>
-                            <span className="text-[11px] text-on-surface-variant shrink-0">
-                              {new Date(act.created_at).toLocaleTimeString('th-TH', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}{' '}
-                              น.
-                            </span>
-                          </div>
-                          <p className="text-xs text-on-surface mt-0.5">
-                            {actTitle}
-                          </p>
-                          {badgeNode && <div className="mt-1">{badgeNode}</div>}
-                        </div>
-                      </div>
+                          {isExpired
+                            ? `หมดอายุแล้ว ${Math.abs(item.daysLeft)} วัน`
+                            : isToday
+                            ? 'หมดอายุวันนี้'
+                            : `เหลือ ${item.daysLeft} วัน`}
+                        </span>
+                      </Link>
                     );
                   })
+                ) : (
+                  <div className="py-4 text-center text-xs text-muted">
+                    🥦 วัตถุดิบทั้งหมดยังสดใหม่ ไม่มีรายการที่ต้องรีบใช้
+                  </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Right Sidebar Widgets Area (4-5 Cols on Desktop) */}
-          <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-5 sm:gap-6 min-w-0">
-            {/* Weekly Grocery Budget Tracker (100% REAL DATA) */}
-            <div
-              onClick={() => setShowEditBudgetModal(true)}
-              className="flex flex-col p-5 rounded-3xl bg-surface-container-lowest shadow-sm border border-border gap-3.5 cursor-pointer hover:border-primary-400 transition group"
-              title="คลิกเพื่อตั้งค่าหรือแก้ไขงบประมาณ"
-            >
+          {/* Card Right: งบอาหารสัปดาห์นี้ (lg:col-span-5) */}
+          <div className="lg:col-span-5 flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border gap-3 shadow-xs">
+            <div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="w-9 h-9 rounded-2xl bg-primary-100 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 flex items-center justify-center">
-                    <Wallet className="w-5 h-5" />
+                  <span className="w-8 h-8 rounded-xl bg-primary-100 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 flex items-center justify-center">
+                    <Wallet className="w-4 h-4 text-primary-600" />
                   </span>
-                  <span className="font-heading font-bold text-sm text-foreground flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditBudgetModal(true)}
+                    className="font-heading font-bold text-sm text-foreground flex items-center gap-1.5 hover:text-primary-600 transition group cursor-pointer"
+                  >
                     <span>งบอาหารสัปดาห์นี้</span>
                     <Edit2 className="w-3.5 h-3.5 text-muted group-hover:text-primary-600 transition" />
-                  </span>
+                  </button>
                 </div>
                 <span className="text-[11px] font-bold text-primary-600 dark:text-primary-300 bg-primary-500/15 border border-primary-500/25 px-2.5 py-1 rounded-full">
                   เหลือ ฿{budgetSummary.remaining.toLocaleString()}
                 </span>
               </div>
 
-              <div className="flex items-baseline justify-between mt-1">
+              <div className="flex items-baseline justify-between mt-3">
                 <div className="flex items-baseline gap-1.5">
-                  <span className="font-heading text-2xl font-bold text-foreground">
+                  <span className="font-heading text-2xl font-extrabold text-foreground">
                     ฿{budgetSummary.totalSpent.toLocaleString()}
                   </span>
                   <span className="text-xs text-muted">
@@ -1028,156 +621,287 @@ export default function DashboardPage() {
                 </span>
               </div>
 
-              <div className="w-full bg-surface-container rounded-full h-3 overflow-hidden">
+              {/* Segmented / Solid Progress Bar */}
+              <div className="w-full bg-surface-container rounded-full h-2 overflow-hidden mt-3">
                 <div
-                  className="bg-gradient-to-r from-primary-500 to-primary-600 h-full rounded-full transition-all duration-500"
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    budgetSummary.percentUsed > 100
+                      ? 'bg-rose-500'
+                      : 'bg-primary-500'
+                  }`}
                   style={{ width: `${Math.min(100, budgetSummary.percentUsed)}%` }}
                 />
               </div>
-
-              {/* Breakdown chips */}
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/50 text-[11px]">
-                <div className="p-2.5 rounded-2xl bg-surface-container-low flex flex-col">
-                  <span className="text-muted">🛒 ซูเปอร์มาร์เก็ต</span>
-                  <span className="font-bold text-foreground mt-0.5">
-                    ฿{budgetSummary.supermarketSpent.toLocaleString()}
-                  </span>
-                </div>
-                <div className="p-2.5 rounded-2xl bg-surface-container-low flex flex-col">
-                  <span className="text-muted">🛵 สั่งเดลิเวอรี</span>
-                  <span className="font-bold text-foreground mt-0.5">
-                    ฿{budgetSummary.deliverySpent.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* AI Recipe Daily Inspiration Teaser */}
-            <div className="flex flex-col p-5 rounded-3xl bg-gradient-to-br from-surface-container-lowest via-surface-container-low to-surface-container-lowest shadow-sm border border-border/80 gap-3.5 hover:border-secondary-500/40 transition">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-9 h-9 rounded-2xl bg-secondary-100 dark:bg-secondary-950/60 text-secondary-700 dark:text-secondary-300 flex items-center justify-center">
-                    <CookingPot className="w-5 h-5" />
-                  </span>
-                  <div>
-                    <h3 className="font-heading font-bold text-sm text-foreground">
-                      ไอเดียเมนูจากของในตู้
-                    </h3>
-                    <span className="text-[11px] text-muted">ปลอดภัย คัดกรองของหมดอายุออก</span>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary-500/15 text-secondary-600 border border-secondary-500/25">
-                  AI กู้ชีพ
-                </span>
-              </div>
-
-              {dailyRecipeTeaser ? (
-                <div className="p-3.5 rounded-2xl bg-surface-container/60 border border-border/70 space-y-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">🍲</span>
-                    <div className="min-w-0">
-                      <span className="text-xs font-bold text-foreground block truncate">
-                        {dailyRecipeTeaser.dishTitle}
-                      </span>
-                      <span className="text-[11px] text-muted block truncate">
-                        ใช้วัตถุดิบสดพร้อมปรุงในตู้ของคุณ
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 pt-0.5">
-                    {dailyRecipeTeaser.names.map((n) => (
-                      <span
-                        key={n}
-                        className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-surface-container-lowest text-muted border border-border"
-                      >
-                        {n}
-                      </span>
-                    ))}
-                  </div>
-                  <Link
-                    href={`/recipes?ingredient=${encodeURIComponent(dailyRecipeTeaser.leadName)}&fridgeId=${encodeURIComponent(dailyRecipeTeaser.fridgeId)}`}
-                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-primary-600 to-primary-500 hover:opacity-95 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>สุ่มเมนูนี้ใน AI Recipe</span>
-                    <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
-                  </Link>
-                </div>
-              ) : (
-                <div className="p-4 rounded-2xl bg-surface-container-low text-center text-xs text-muted">
-                  เพิ่มวัตถุดิบลงตู้เย็นเพื่อรับคำแนะนำเมนูประจำวันจาก AI
-                </div>
-              )}
-            </div>
-
-            {/* Household Members & Quick Sharing */}
-            <div className="flex flex-col p-5 rounded-3xl bg-surface-container-lowest shadow-sm border border-border gap-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-9 h-9 rounded-2xl bg-primary-100 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 flex items-center justify-center">
-                    <Users className="w-5 h-5" />
-                  </span>
-                  <div>
-                    <h3 className="font-heading font-bold text-sm text-foreground">
-                      สมาชิกในครัวเรือน
-                    </h3>
-                    <span className="text-[11px] text-muted">
-                      {memberCount} คนร่วมจัดการตู้เย็น
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowShareModal(true)}
-                  className="text-xs font-bold text-primary-600 hover:underline flex items-center gap-1"
-                >
-                  <Share2 className="w-3 h-3" />
-                  <span>เชิญ</span>
-                </button>
-              </div>
-
-              {/* Code Chip */}
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-surface-container-low border border-border/70">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-semibold text-muted">รหัสบ้านสำหรับคนในครอบครัว</span>
-                  <span className="text-xs font-bold text-primary-600 tracking-wider">
-                    {householdCode}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopyHouseholdCode}
-                  className="px-2.5 py-1 rounded-xl bg-surface-container-lowest border border-border text-xs font-bold text-foreground hover:text-primary-600 transition flex items-center gap-1 active:scale-95 shadow-xs"
-                >
-                  {copiedCode ? (
-                    <>
-                      <Check className="w-3 h-3 text-secondary-600" />
-                      <span>คัดลอกแล้ว</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3" />
-                      <span>คัดลอก</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Zero-Waste Eco Tip Card */}
-            <div className="p-4 rounded-3xl bg-surface-container-low border border-border/60 flex items-start gap-3">
-              <span className="text-2xl shrink-0">🌿</span>
-              <div className="space-y-0.5">
-                <span className="font-heading font-bold text-xs text-foreground block">
-                  เคล็ดลับบ้านประหยัด & รักษ์โลก
-                </span>
-                <p className="text-[11px] text-muted leading-relaxed">
-                  นำผักผลไม้ห่อด้วยกระดาษอเนกประสงค์ก่อนใส่ช่องแช่ผัก ช่วยลดความชื้นสะสมและยืดอายุได้นานขึ้น 2 เท่า!
-                </p>
-              </div>
             </div>
           </div>
-        </div>
+        </section>
+
+        {/* =========================================================================
+            Section 5: Compartment Cards (ตู้เย็นของคุณ) (Image 1)
+           ========================================================================= */}
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-heading text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+              <span>ตู้เย็นของคุณ</span>
+              <span className="w-5 h-5 rounded-full bg-surface-container font-bold text-xs flex items-center justify-center text-muted">
+                {fridges.length}
+              </span>
+            </h2>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowAddFridge(true)}
+                className="text-xs font-bold text-primary-600 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                + เพิ่มตู้เย็น
+              </button>
+              <Link
+                href="/fridges"
+                className="text-xs font-bold text-muted hover:text-foreground flex items-center gap-0.5 cursor-pointer"
+              >
+                <span>จัดการตู้</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+
+          {loadingData ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+          ) : fridges.length === 0 ? (
+            <div className="p-8 rounded-3xl border border-dashed border-border bg-surface-container-lowest text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-600 flex items-center justify-center mx-auto">
+                <Refrigerator className="w-6 h-6" />
+              </div>
+              <h3 className="font-heading font-bold text-sm text-foreground">
+                ยังไม่มีตู้เย็นในครัวเรือนนี้
+              </h3>
+              <p className="text-xs text-muted max-w-xs mx-auto">
+                สร้างตู้เย็นใบแรกของคุณเพื่อเริ่มจัดการอาหาร เตือนวันหมดอายุ และสแกนบิล
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowAddFridge(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 text-white text-xs font-bold shadow-xs active:scale-95 transition cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>สร้างตู้เย็นใหม่</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {fridges.map((f) => {
+                const itemCount = fridgeItemsCountMap.get(f.id) || 0;
+                const expCount = fridgeExpiringMap.get(f.id) || 0;
+                const fridgeItems = items.filter((i) => i.fridge_id === f.id && Number(i.quantity) > 0);
+                const previewNames = fridgeItems.slice(0, 3).map((i) => i.name);
+                const remainingCount = fridgeItems.length - 3;
+                const previewText = previewNames.length > 0
+                  ? `${previewNames.join(', ')}${remainingCount > 0 ? ` และอีก ${remainingCount} อย่าง` : ''}`
+                  : 'ยังไม่มีวัตถุดิบในตู้นี้';
+
+                const isFreezer = f.name.includes('ฟรีซ') || f.name.includes('แช่แข็ง');
+                const isBeverage = f.name.includes('เครื่องดื่ม') || f.name.includes('เบียร์') || f.name.includes('หน้าบ้าน');
+
+                return (
+                  <div
+                    key={f.id}
+                    className="p-5 rounded-3xl bg-surface-container-lowest border border-border flex flex-col justify-between gap-4 shadow-xs"
+                  >
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="w-10 h-10 rounded-2xl bg-surface-container flex items-center justify-center text-xl shrink-0">
+                            {f.icon || (isFreezer ? '❄️' : isBeverage ? '🍺' : '❄️')}
+                          </span>
+                          <div className="min-w-0">
+                            <h3 className="font-heading font-bold text-base text-foreground truncate">
+                              {f.name}
+                            </h3>
+                          </div>
+                        </div>
+                        <span className="text-xs font-semibold text-muted px-2.5 py-1 rounded-full bg-surface-container">
+                          {itemCount} รายการ
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-muted truncate mt-1">
+                        {previewText}
+                      </p>
+
+                      <div className="mt-1">
+                        {expCount > 0 ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            <span>มี {expCount} รายการใกล้หมดอายุ</span>
+                          </span>
+                        ) : itemCount > 0 ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span>วัตถุดิบทั้งหมดยังสดใหม่</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
+                            <span>พร้อมเก็บวัตถุดิบ</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons Row matching Image 1 */}
+                    <div className="flex items-center gap-2.5 pt-2 border-t border-border/60">
+                      <Link
+                        href={`/fridges?selected=${f.id}`}
+                        className="flex-1 py-2 px-3 rounded-xl bg-surface-container hover:bg-surface-container-high border border-border text-xs font-bold text-foreground transition text-center flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>ดูตู้เย็น</span>
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAddProduct(f.id)}
+                        className="flex-1 py-2 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition text-center flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer shadow-xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ เพิ่มของ</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* =========================================================================
+            Section 6: Recent Household Activities (Image 1)
+           ========================================================================= */}
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-heading text-base sm:text-lg font-bold text-foreground">
+              กิจกรรมล่าสุดในบ้าน
+            </h2>
+            <Link
+              href="/activities"
+              className="text-xs font-bold text-primary-600 hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <span>ซิงค์เรียลไทม์</span>
+              <span>⚡</span>
+            </Link>
+          </div>
+
+          <div className="p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border divide-y divide-border/60 shadow-xs">
+            {activities.length === 0 ? (
+              <div className="py-6 text-center text-xs text-muted">
+                ยังไม่มีประวัติกิจกรรมล่าสุดในบ้าน
+              </div>
+            ) : (
+              activities.map((act) => {
+                const details = act.details as Record<string, unknown> | null;
+                const userName = (details?.user_name as string) || 'สมาชิก';
+                const itemName = (details?.item_name as string) || (details?.name as string) || 'สินค้า';
+                const unit = (details?.unit as string) || 'ชิ้น';
+                const amount = details?.amount !== undefined ? Number(details.amount) : 1;
+
+                let actTitle = '';
+                let badgeNode: React.ReactNode = null;
+                let iconClass = 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border border-primary-500/25';
+
+                if (act.action === 'item_added' || act.action === 'quantity_increased') {
+                  actTitle = `เพิ่ม "${itemName}" ${amount} ${unit}`;
+                  badgeNode = (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/25">
+                      +{amount} {unit}
+                    </span>
+                  );
+                  iconClass = 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/25';
+                } else if (act.action === 'quantity_decreased') {
+                  actTitle = `หยิบ "${itemName}" ออก ${amount} ${unit}`;
+                  badgeNode = (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/25">
+                      -{amount} {unit}
+                    </span>
+                  );
+                  iconClass = 'bg-amber-500/15 text-amber-500 border border-amber-500/25';
+                } else if (act.action === 'item_removed') {
+                  actTitle = `ลบรายการ "${itemName}" ออกจากตู้`;
+                  iconClass = 'bg-rose-500/15 text-rose-500 border border-rose-500/25';
+                } else if (act.action === 'member_joined') {
+                  actTitle = `${userName} เข้าร่วมครัวเรือน`;
+                  iconClass = 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border border-primary-500/25';
+                } else if (act.action === 'receipt_scanned') {
+                  actTitle = `สแกนใบเสร็จเพิ่มวัตถุดิบ`;
+                  iconClass = 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/25';
+                } else if (act.action === 'fridge_created') {
+                  actTitle = `สร้างตู้เย็นใหม่`;
+                  iconClass = 'bg-primary-500/15 text-primary-600 dark:text-primary-400 border border-primary-500/25';
+                } else if (act.action === 'item_updated') {
+                  actTitle = `อัปเดตข้อมูล "${itemName}"`;
+                  iconClass = 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25';
+                } else {
+                  actTitle = `ทำรายการในตู้เย็น`;
+                  iconClass = 'bg-surface-container text-muted border border-border';
+                }
+
+                return (
+                  <div
+                    key={act.id}
+                    className="py-3 first:pt-0 last:pb-0 flex items-start gap-3"
+                  >
+                    <div
+                      className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 font-bold text-xs ${iconClass}`}
+                    >
+                      {act.action === 'quantity_increased' || act.action === 'item_added'
+                        ? '➕'
+                        : act.action === 'quantity_decreased'
+                        ? '➖'
+                        : act.action === 'item_removed'
+                        ? '🗑️'
+                        : act.action === 'item_updated'
+                        ? '🔄'
+                        : '🏡'}
+                    </div>
+
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-bold text-foreground truncate">
+                          {userName}
+                        </span>
+                        <span className="text-[11px] text-muted shrink-0">
+                          {new Date(act.created_at).toLocaleTimeString('th-TH', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}{' '}
+                          น.
+                        </span>
+                      </div>
+                      <p className="text-xs text-foreground mt-0.5">
+                        {actTitle}
+                      </p>
+                      {badgeNode && <div className="mt-1">{badgeNode}</div>}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        {/* Section 6: Zero-Waste Eco Tip Card */}
+        <section className="p-4 sm:p-5 rounded-3xl bg-surface-container-low border border-border/60 flex items-start gap-3">
+          <span className="text-2xl shrink-0">🌿</span>
+          <div className="space-y-0.5">
+            <span className="font-heading font-bold text-xs sm:text-sm text-foreground block">
+              เคล็ดลับบ้านประหยัด & รักษ์โลก
+            </span>
+            <p className="text-xs text-muted leading-relaxed">
+              นำผักผลไม้ห่อด้วยกระดาษอเนกประสงค์ก่อนใส่ช่องแช่ผัก ช่วยลดความชื้นสะสมและยืดอายุได้นานขึ้น 2 เท่า!
+            </p>
+          </div>
+        </section>
       </div>
 
       {/* Add Product Modal */}

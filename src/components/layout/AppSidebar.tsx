@@ -5,16 +5,16 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
-  CalendarDays,
-  Home,
+  Refrigerator,
   Receipt,
   Clock,
   History,
   Settings,
   Sparkles,
-  BarChart3,
+  Home,
   PanelLeftClose,
   PanelLeftOpen,
+  Leaf,
 } from 'lucide-react';
 
 interface AppSidebarProps {
@@ -26,15 +26,14 @@ export function AppSidebar({ collapsed = false, onToggleCollapse }: AppSidebarPr
   const pathname = usePathname();
 
   const navigation = [
-    { name: 'แดชบอร์ด', href: '/', icon: LayoutDashboard },
-    { name: 'ไดอารี่ & ตู้เย็น', href: '/fridges', icon: CalendarDays },
+    { name: 'ภาพรวม', href: '/', icon: LayoutDashboard },
+    { name: 'ตู้เย็น & คลัง', href: '/fridges', icon: Refrigerator },
     { name: 'เมนู AI กู้ชีพ', href: '/recipes', icon: Sparkles, badge: 'AI' },
     { name: 'สแกนใบเสร็จ OCR', href: '/receipts', icon: Receipt },
-    { name: 'ข้อมูลเชิงลึก', href: '/insights', icon: BarChart3 },
     { name: 'วันหมดอายุ', href: '/expirations', icon: Clock },
     { name: 'ครัวเรือน & สมาชิก', href: '/household', icon: Home },
     { name: 'ประวัติการใช้งาน', href: '/activities', icon: History },
-    { name: 'บัญชี & ตั้งค่า', href: '/profile', icon: Settings },
+    { name: 'ตั้งค่า & โปรไฟล์', href: '/profile', icon: Settings },
   ];
 
   return (
@@ -139,15 +138,15 @@ export function AppSidebar({ collapsed = false, onToggleCollapse }: AppSidebarPr
         })}
       </nav>
 
-      {/* Eco Zero-Waste Pod */}
+      {/* Eco Zero-Waste Pod matching Image 1 */}
       {!collapsed && (
-        <div className="p-3.5 m-3 rounded-2xl bg-orange-50/70 dark:bg-surface-container-low border border-orange-100 dark:border-border/60">
-          <div className="flex items-center gap-2 text-primary-700 dark:text-secondary-600">
+        <div className="p-3.5 m-3 rounded-2xl bg-emerald-950/20 dark:bg-surface-container-low border border-emerald-900/30 dark:border-border/60">
+          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
             <span className="material-symbols-outlined text-[18px]">eco</span>
             <span className="text-xs font-bold font-heading">Zero-Waste Home</span>
           </div>
           <p className="text-[11px] text-stone-600 dark:text-on-surface-variant mt-1 leading-relaxed">
-            ช่วยลดขยะอาหารและประหยัดค่าใช้จ่ายในบ้านอย่างชาญฉลาด 🌱
+            ลดขยะอาหารและประหยัดค่าใช้จ่ายในบ้าน ช่วยลดโลกร้อน 🌱
           </p>
         </div>
       )}
