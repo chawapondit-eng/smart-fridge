@@ -28,6 +28,8 @@ export function CreateHouseholdModal({ isOpen }: CreateHouseholdModalProps) {
         if (!trimmed) return;
         // Auto-detect: ถ้าเผลอนำรหัสคำเชิญมากรอกในช่องชื่อบ้าน ให้เปลี่ยนเป็นการเข้าร่วมบ้านอัตโนมัติ
         if (
+          trimmed.toUpperCase().startsWith('#TY-') ||
+          trimmed.toUpperCase().startsWith('TY-') ||
           trimmed.toUpperCase().startsWith('HH-') ||
           trimmed.toUpperCase().startsWith('FRIDGE-') ||
           trimmed.toUpperCase().startsWith('HOME-')

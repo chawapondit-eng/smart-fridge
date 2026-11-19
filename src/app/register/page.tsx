@@ -71,9 +71,14 @@ export default function RegisterPage() {
           // ignore
         }
 
-        toast.success('สมัครสมาชิกสำเร็จ! ยินดีต้อนรับสู่ CheckTuYen');
-        router.push('/');
-        router.refresh();
+        if (data.session) {
+          toast.success('สมัครสมาชิกสำเร็จ! ยินดีต้อนรับสู่ CheckTuYen');
+          router.replace('/');
+          router.refresh();
+        } else {
+          toast.success('สมัครสมาชิกสำเร็จ! กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชีแล้วเข้าสู่ระบบ');
+          router.replace('/login');
+        }
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
@@ -115,7 +120,7 @@ export default function RegisterPage() {
             <span className="material-symbols-outlined text-[15px]">eco</span>
             <span>เริ่มต้นดูแลครัวของคุณ</span>
           </div>
-          <h2 className="font-heading text-2xl font-extrabold text-on-surface tracking-tight">
+          <h2 className="font-heading text-2xl font-bold text-on-surface">
             สมัครสมาชิก CheckTuYen
           </h2>
           <p className="text-xs text-on-surface-variant mt-1">

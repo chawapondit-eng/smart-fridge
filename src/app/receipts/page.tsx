@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useRef, useEffect, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useHousehold } from '@/contexts/HouseholdContext';
 import { createClient } from '@/lib/supabase/client';
@@ -16,12 +16,14 @@ import {
   Wallet,
   ZoomIn,
   Plus,
-  Trash2,
   Edit2,
+  Refrigerator,
+  AlertTriangle,
 } from 'lucide-react';
 import { getAutoEmoji } from '@/components/inventory/EditProductModal';
 import { EditBudgetModal } from '@/components/budget/EditBudgetModal';
 import { fetchWeeklyBudgetSummary, type WeeklyBudgetSummary } from '@/lib/budget';
+import { addDaysFromBangkokToday, normalizeDateString } from '@/lib/date';
 
 interface ParsedReceiptItem {
   id: string;
@@ -34,11 +36,26 @@ interface ParsedReceiptItem {
   confidence: number;
 }
 
-export default function ReceiptScannerPage() {
+interface ExistingFridgeItem {
+  id: string;
+  name: string;
+  fridge_id: string;
+  quantity: number;
+}
+
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function ReceiptScannerContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialFridgeParam = searchParams.get('fridgeId') || '';
   const supabase = createClient();
   const { currentHousehold, fridges, authUser, user } = useHousehold();
 
+  const [defaultFridgeId, setDefaultFridgeId] = useState<string>(initialFridgeParam);
+  const [existingItems, setExistingItems] = useState<ExistingFridgeItem[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -47,6 +64,36 @@ export default function ReceiptScannerPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showZoomModal, setShowZoomModal] = useState(false);
   const [showEditBudgetModal, setShowEditBudgetModal] = useState(false);
+
+  // ซิงค์ตู้เย็นปลายทางเริ่มต้นจาก URL หรือตู้แรกในบ้าน
+  useEffect(() => {
+    if (fridges.length === 0) return;
+    if (initialFridgeParam && fridges.some((f) => f.id === initialFridgeParam)) {
+      setDefaultFridgeId(initialFridgeParam);
+    } else if (!defaultFridgeId || !fridges.some((f) => f.id === defaultFridgeId)) {
+      setDefaultFridgeId(fridges[0].id);
+    }
+  }, [fridges, initialFridgeParam, defaultFridgeId]);
+
+  // โหลดรายการที่มีอยู่แล้วในตู้เย็นเพื่อป้องกันการเพิ่มรายการซ้ำโดยไม่ตั้งใจ
+  useEffect(() => {
+    async function loadExistingItems() {
+      if (!currentHousehold?.id) return;
+      try {
+        const { data } = await supabase
+          .from('items')
+          .select('id, name, fridge_id, quantity')
+          .eq('household_id', currentHousehold.id)
+          .gt('quantity', 0);
+        if (data) {
+          setExistingItems(data as ExistingFridgeItem[]);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadExistingItems();
+  }, [currentHousehold?.id, supabase]);
 
   // Real Budget State
   const [budgetSummary, setBudgetSummary] = useState<WeeklyBudgetSummary>({
@@ -104,40 +151,55 @@ export default function ReceiptScannerPage() {
       const data = await res.json();
 
       if (res.ok && data.success && Array.isArray(data.items) && data.items.length > 0) {
-        const defaultFId = fridges[0]?.id || '';
-        const today = new Date();
+        const defaultFId = defaultFridgeId || fridges[0]?.id || '';
 
-        const mapped: ParsedReceiptItem[] = data.items.map((it: any, idx: number) => {
-          // คำนวณวันหมดอายุอัตโนมัติตามประเภท
-          const expDays = it.name.includes('นม')
+        const mapped: ParsedReceiptItem[] = data.items.map((rawIt: unknown, idx: number) => {
+          const it = (rawIt || {}) as Record<string, unknown>;
+          const itemName = String(it.name || 'สินค้า');
+          // คำนวณวันหมดอายุตามเวลาไทย (Asia/Bangkok) โดยไม่ใช้ UTC toISOString
+          const expDays = itemName.includes('นม')
             ? 7
-            : it.name.includes('ผัก')
+            : itemName.includes('ผัก')
             ? 3
-            : it.name.includes('เนื้อ') || it.name.includes('ไก่') || it.name.includes('หมู')
+            : itemName.includes('เนื้อ') || itemName.includes('ไก่') || itemName.includes('หมู')
             ? 4
-            : it.name.includes('ไข่')
+            : itemName.includes('ไข่')
             ? 14
             : 10;
 
-          const expDate = new Date(today.getTime() + expDays * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split('T')[0];
+          const expDate = addDaysFromBangkokToday(expDays);
 
           return {
-            id: String(idx + 1),
-            name: it.name || 'สินค้า',
+            id: `${Date.now()}-${idx + 1}`,
+            name: itemName,
             quantity: Number(it.quantity) || 1,
-            unit: it.unit || 'ชิ้น',
+            unit: String(it.unit || 'ชิ้น'),
             price: Number(it.price) || 0,
             expiryDate: expDate,
             targetFridgeId: defaultFId,
-            confidence: it.confidence || 0.95,
+            confidence: Number(it.confidence) || 0.95,
           };
         });
 
-        setParsedItems(mapped);
+        // รวมรายการที่ชื่อเหมือนกันภายในใบเสร็จเดียวกัน เพื่อลดความซ้ำซ้อน
+        const deduped: ParsedReceiptItem[] = [];
+        for (const item of mapped) {
+          const norm = normalizeName(item.name);
+          const existingIdx = deduped.findIndex((d) => normalizeName(d.name) === norm);
+          if (existingIdx !== -1) {
+            deduped[existingIdx] = {
+              ...deduped[existingIdx],
+              quantity: deduped[existingIdx].quantity + item.quantity,
+              price: (deduped[existingIdx].price || 0) + (item.price || 0),
+            };
+          } else {
+            deduped.push(item);
+          }
+        }
+
+        setParsedItems(deduped);
         if (data.store) setStoreName(data.store);
-        toast.success(`AI ตรวจพบ ${mapped.length} รายการจากใบเสร็จ! ✨`);
+        toast.success(`ตรวจพบ ${deduped.length} รายการจากใบเสร็จ!`);
       } else {
         toast.error(data.error || 'ไม่สามารถอ่านข้อความจากใบเสร็จได้ กรุณาลองถ่ายภาพใหม่ให้ตรงและคมชัดขึ้น');
       }
@@ -161,88 +223,171 @@ export default function ReceiptScannerPage() {
     toast.success('นำรายการออกแล้ว');
   }
 
+  // เพิ่มรายการด้วยตนเองกรณี OCR อ่านไม่ครบ
+  function addManualRow() {
+    const expDate = addDaysFromBangkokToday(7);
+    setParsedItems((prev) => [
+      ...prev,
+      {
+        id: `manual-${Date.now()}`,
+        name: '',
+        quantity: 1,
+        unit: 'ชิ้น',
+        price: 0,
+        expiryDate: expDate,
+        targetFridgeId: defaultFridgeId || fridges[0]?.id || '',
+        confidence: 1,
+      },
+    ]);
+  }
+
+  // เปลี่ยนตู้เย็นปลายทางเริ่มต้นสำหรับทุกรายการ
+  function handleChangeDefaultFridge(newFridgeId: string) {
+    setDefaultFridgeId(newFridgeId);
+    setParsedItems((prev) => prev.map((it) => ({ ...it, targetFridgeId: newFridgeId })));
+  }
+
+  // ตรวจสอบว่ารายการซ้ำกับของที่มีอยู่แล้วในตู้เย็นปลายทางหรือไม่
+  function findDuplicateInFridge(name: string, targetFridgeId?: string): ExistingFridgeItem | undefined {
+    const norm = normalizeName(name);
+    if (!norm) return undefined;
+    const fId = targetFridgeId || defaultFridgeId || fridges[0]?.id;
+    return existingItems.find(
+      (ex) => ex.fridge_id === fId && normalizeName(ex.name) === norm
+    );
+  }
+
   // คำนวณยอดรวม
   const totalPrice = useMemo(() => {
     return parsedItems.reduce((acc, curr) => acc + (Number(curr.price) || 0), 0);
   }, [parsedItems]);
 
-  // 3. บันทึกสินค้าลงในตู้เย็น (Supabase Database)
+  // 3. บันทึกสินค้าลงในตู้เย็น (Supabase Database) พร้อมป้องกันรายการซ้ำ
   async function handleConfirmAndSave() {
+    if (submitting) return;
     if (!currentHousehold?.id || !authUser?.id) {
       toast.error('กรุณาเลือกครัวเรือนก่อนบันทึก');
       return;
     }
-    if (parsedItems.length === 0) {
-      toast.error('ไม่มีรายการสินค้าที่จะบันทึก');
+    const validItems = parsedItems.filter((it) => it.name.trim().length > 0);
+    if (validItems.length === 0) {
+      toast.error('กรุณาระบุชื่อสินค้าอย่างน้อย 1 รายการก่อนบันทึก');
+      return;
+    }
+
+    const fallbackFridgeId = defaultFridgeId || fridges[0]?.id;
+    if (!fallbackFridgeId) {
+      toast.error('กรุณาสร้างตู้เย็นอย่างน้อย 1 ตู้ก่อนบันทึกของ');
       return;
     }
 
     setSubmitting(true);
     try {
-      const defaultFId = fridges[0]?.id;
-      if (!defaultFId) {
-        toast.error('กรุณาสร้างตู้เย็นอย่างน้อย 1 ตู้ก่อนบันทึกของ');
-        return;
-      }
+      // โหลดรายการล่าสุดจาก DB เพื่อกันรายการซ้ำอย่างแม่นยำ
+      const { data: latestDbItems } = await supabase
+        .from('items')
+        .select('id, name, fridge_id, quantity')
+        .eq('household_id', currentHousehold.id)
+        .gt('quantity', 0);
 
-      for (const it of parsedItems) {
-        const targetFridge = it.targetFridgeId || defaultFId;
-        const autoEmoji = getAutoEmoji(it.name);
-        const itemId =
-          typeof crypto !== 'undefined' && crypto.randomUUID
-            ? crypto.randomUUID()
-            : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-                const r = (Math.random() * 16) | 0;
-                const v = c === 'x' ? r : (r & 0x3) | 0x8;
-                return v.toString(16);
-              });
+      const dbPool: ExistingFridgeItem[] = (latestDbItems as ExistingFridgeItem[]) || [];
+      let mergedCount = 0;
+      let insertedCount = 0;
 
-        // 1. เพิ่มเข้า items table (พร้อม added_by และ fallback)
-        const fullPayload: Record<string, unknown> = {
-          id: itemId,
-          fridge_id: targetFridge,
-          household_id: currentHousehold.id,
-          name: it.name.trim(),
-          quantity: Number(it.quantity) || 1,
-          unit: it.unit.trim() || 'ชิ้น',
-          image_url: autoEmoji,
-          status: 'in_stock',
-          added_by: authUser.id,
-        };
+      for (const it of validItems) {
+        const targetFridge = it.targetFridgeId || fallbackFridgeId;
+        const cleanName = it.name.trim();
+        const addQty = Number(it.quantity) || 1;
+        const norm = normalizeName(cleanName);
 
-        let { data: insertedItem, error: itemErr } = await supabase
-          .from('items')
-          .insert(fullPayload)
-          .select('id')
-          .maybeSingle();
+        // ตรวจสอบว่ามีสินค้านี้อยู่ในตู้เย็นเดียวกันแล้วหรือไม่
+        const existing = dbPool.find(
+          (ex) => ex.fridge_id === targetFridge && normalizeName(ex.name) === norm
+        );
 
-        if (itemErr) {
-          // Retry without optional columns if column does not exist
-          const retryPayload: Record<string, unknown> = {
+        let finalItemId = '';
+
+        if (existing) {
+          // รวมจำนวนเข้ากับรายการเดิม ป้องกันการสร้างรายการซ้ำ
+          const updatedQty = Number(existing.quantity) + addQty;
+          const { error: updErr } = await supabase
+            .from('items')
+            .update({
+              quantity: updatedQty,
+              status: updatedQty <= 1 ? 'low_stock' : 'in_stock',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id);
+
+          if (updErr) {
+            throw new Error(updErr.message || 'อัปเดตรายการเดิมไม่สำเร็จ');
+          }
+          existing.quantity = updatedQty;
+          finalItemId = existing.id;
+          mergedCount++;
+        } else {
+          const autoEmoji = getAutoEmoji(cleanName);
+          const itemId =
+            typeof crypto !== 'undefined' && crypto.randomUUID
+              ? crypto.randomUUID()
+              : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+                  const r = (Math.random() * 16) | 0;
+                  const v = c === 'x' ? r : (r & 0x3) | 0x8;
+                  return v.toString(16);
+                });
+
+          // 1. เพิ่มเข้า items table (พร้อม added_by และ fallback)
+          const fullPayload: Record<string, unknown> = {
             id: itemId,
             fridge_id: targetFridge,
             household_id: currentHousehold.id,
-            name: it.name.trim(),
-            quantity: Number(it.quantity) || 1,
+            name: cleanName,
+            quantity: addQty,
             unit: it.unit.trim() || 'ชิ้น',
+            image_url: autoEmoji,
+            status: addQty <= 1 ? 'low_stock' : 'in_stock',
+            added_by: authUser.id,
           };
-          const retryRes = await supabase
+
+          const { data: initialInserted, error: itemErr } = await supabase
             .from('items')
-            .insert(retryPayload)
+            .insert(fullPayload)
             .select('id')
             .maybeSingle();
 
-          if (retryRes.error) {
-            console.error('Failed to insert item:', retryRes.error);
-            throw new Error(retryRes.error.message || itemErr.message || 'บันทึกสินค้าไม่สำเร็จ');
+          let insertedItem = initialInserted;
+
+          if (itemErr) {
+            // Retry without optional columns if column does not exist
+            const retryPayload: Record<string, unknown> = {
+              id: itemId,
+              fridge_id: targetFridge,
+              household_id: currentHousehold.id,
+              name: cleanName,
+              quantity: addQty,
+              unit: it.unit.trim() || 'ชิ้น',
+            };
+            const retryRes = await supabase
+              .from('items')
+              .insert(retryPayload)
+              .select('id')
+              .maybeSingle();
+
+            if (retryRes.error) {
+              console.error('Failed to insert item:', retryRes.error);
+              throw new Error(retryRes.error.message || itemErr.message || 'บันทึกสินค้าไม่สำเร็จ');
+            }
+            insertedItem = retryRes.data;
           }
-          insertedItem = retryRes.data;
+
+          finalItemId = insertedItem?.id || itemId;
+          dbPool.push({ id: finalItemId, name: cleanName, fridge_id: targetFridge, quantity: addQty });
+          insertedCount++;
         }
 
-        const finalItemId = insertedItem?.id || itemId;
-
-        // 2. ถ้ามีวันหมดอายุ บันทึกเข้า item_batches
-        if (it.expiryDate) {
+        // 2. ถ้ามีวันหมดอายุ บันทึกเข้า item_batches (Calendar Date YYYY-MM-DD)
+        const cleanExpiry = normalizeDateString(it.expiryDate);
+        if (cleanExpiry && finalItemId) {
           try {
             const batchId =
               typeof crypto !== 'undefined' && crypto.randomUUID
@@ -256,8 +401,8 @@ export default function ReceiptScannerPage() {
             const bRes = await supabase.from('item_batches').insert({
               id: batchId,
               item_id: finalItemId,
-              quantity: Number(it.quantity) || 1,
-              expiry_date: it.expiryDate,
+              quantity: addQty,
+              expiry_date: cleanExpiry,
               added_by: authUser.id,
             });
 
@@ -265,8 +410,8 @@ export default function ReceiptScannerPage() {
               await supabase.from('item_batches').insert({
                 id: batchId,
                 item_id: finalItemId,
-                quantity: Number(it.quantity) || 1,
-                expiry_date: it.expiryDate,
+                quantity: addQty,
+                expiry_date: cleanExpiry,
               });
             }
           } catch (e) {
@@ -285,7 +430,7 @@ export default function ReceiptScannerPage() {
           details: {
             user_name: currentUserName,
             store_name: storeName,
-            items_count: parsedItems.length,
+            items_count: validItems.length,
             total_price: totalPrice,
           },
         });
@@ -293,13 +438,27 @@ export default function ReceiptScannerPage() {
         console.warn('Activity log insert warning:', e);
       }
 
-      toast.success(`บันทึก ${parsedItems.length} รายการเข้าตู้เย็นสำเร็จ! 🎉`);
-      router.push('/fridges');
-    } catch (err: any) {
+      // ล้างสถานะเพื่อป้องกันการกดบันทึกซ้ำ และโหลดงบประมาณใหม่
+      setParsedItems([]);
+      setImageFile(null);
+      setPreviewUrl(null);
+      await loadBudget();
+
+      const summaryMsg =
+        mergedCount > 0 && insertedCount > 0
+          ? `บันทึกใหม่ ${insertedCount} รายการ และรวมกับของเดิม ${mergedCount} รายการเรียบร้อย!`
+          : mergedCount > 0
+          ? `รวมจำนวนเข้ากับรายการเดิม ${mergedCount} รายการเรียบร้อย!`
+          : `บันทึก ${insertedCount} รายการเข้าตู้เย็นสำเร็จ! 🎉`;
+
+      toast.success(summaryMsg);
+      router.push(fallbackFridgeId ? `/fridges/${fallbackFridgeId}` : '/fridges');
+    } catch (err: unknown) {
       console.error('Error saving receipt items:', err);
+      const errObj = err as { message?: string; details?: string } | null;
       const msg =
-        err?.message ||
-        err?.details ||
+        errObj?.message ||
+        errObj?.details ||
         (typeof err === 'string' ? err : 'เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่อีกครั้ง');
       toast.error(msg);
     } finally {
@@ -310,43 +469,57 @@ export default function ReceiptScannerPage() {
   return (
     <MainLayout>
       <div className="flex flex-col w-full pb-12 gap-5 animate-in fade-in duration-300">
-        {/* Header Banner */}
-        <div className="flex items-start justify-between bg-surface-container-low rounded-3xl p-5 sm:p-6 border border-border shadow-xs">
-          <div className="space-y-1 max-w-[80%]">
-            <h1 className="font-heading text-xl sm:text-2xl font-semibold text-foreground">
-              สแกนใบเสร็จด้วย AI 🧾
-            </h1>
-            <p className="text-xs sm:text-sm text-muted">
-              เช็คยอดไว แม่นยำ บันทึกของเข้าตู้เย็นอัตโนมัติ
-            </p>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-primary-500/15 border border-primary-500/30 flex items-center justify-center shrink-0 text-primary-600 dark:text-primary-400 shadow-xs">
-            <Receipt className="w-6 h-6" />
-          </div>
-        </div>
+        {/* Primary Element: Receipt Scan & Upload Zone */}
+        <div className="bg-surface-container-lowest rounded-3xl p-5 sm:p-7 shadow-sm border border-border flex flex-col items-center text-center relative overflow-hidden">
+          <div className="w-full flex flex-wrap items-center justify-between gap-2 pb-4 mb-4 border-b border-border/60 text-left">
+            <div className="flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-primary-600" />
+              <h1 className="font-heading text-lg sm:text-xl font-bold text-foreground">
+                สแกนใบเสร็จ
+              </h1>
+            </div>
 
-        {/* Upload Zone */}
-        <div className="bg-surface-container-lowest rounded-3xl p-6 sm:p-8 shadow-sm border border-border flex flex-col items-center text-center relative overflow-hidden">
-          <div className="relative w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mb-3">
-            <span className="material-symbols-outlined text-primary-600 text-[32px]">
+            {fridges.length > 0 && (
+              <div className="flex items-center gap-2 bg-surface-container-low border border-border rounded-xl px-3 py-1.5 text-xs">
+                <Refrigerator className="w-3.5 h-3.5 text-primary-600 shrink-0" />
+                <span className="text-muted">บันทึกลงตู้:</span>
+                <select
+                  value={defaultFridgeId || fridges[0]?.id || ''}
+                  onChange={(e) => handleChangeDefaultFridge(e.target.value)}
+                  aria-label="เลือกตู้เย็นปลายทาง"
+                  className="bg-transparent font-bold text-foreground outline-none cursor-pointer"
+                >
+                  {fridges.map((f) => (
+                    <option key={f.id} value={f.id} className="bg-card text-foreground">
+                      {f.icon || '❄️'} {f.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="relative w-16 h-16 rounded-2xl bg-primary-500/10 border border-primary-500/25 flex items-center justify-center mb-3">
+            <span className="material-symbols-outlined text-primary-600 text-[34px]">
               document_scanner
             </span>
           </div>
 
           <h2 className="font-heading font-semibold text-base sm:text-lg text-foreground mb-4">
-            ถ่ายรูปหรืออัปโหลดสลิปใบเสร็จ
+            ถ่ายภาพหรือเลือกใบเสร็จเพื่อดึงรายการวัตถุดิบ
           </h2>
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
+          <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
             {/* Camera */}
             <button
               type="button"
+              disabled={scanning}
               onClick={() => cameraInputRef.current?.click()}
-              className="flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm shadow-xs active:scale-[0.98] transition"
+              className="flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white py-3.5 px-4 rounded-2xl font-bold text-xs sm:text-sm shadow-sm active:scale-[0.98] transition disabled:opacity-60"
             >
               <Camera className="w-4 h-4" />
-              <span>ถ่ายภาพทันที</span>
+              <span>ถ่ายภาพใบเสร็จ</span>
             </button>
             <input
               type="file"
@@ -354,31 +527,42 @@ export default function ReceiptScannerPage() {
               accept="image/*"
               capture="environment"
               className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+              onChange={(e) => {
+                if (e.target.files?.[0]) {
+                  handleFileSelect(e.target.files[0]);
+                  e.target.value = '';
+                }
+              }}
             />
 
             {/* File Pick */}
             <button
               type="button"
+              disabled={scanning}
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center justify-center gap-2 bg-surface-container-high hover:bg-surface-container text-on-surface py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm shadow-xs active:scale-[0.98] transition border border-border"
+              className="flex items-center justify-center gap-2 bg-surface-container-high hover:bg-surface-container text-on-surface py-3.5 px-4 rounded-2xl font-bold text-xs sm:text-sm shadow-xs active:scale-[0.98] transition border border-border disabled:opacity-60"
             >
               <FolderOpen className="w-4 h-4 text-primary-600" />
-              <span>เลือกรูปภาพ</span>
+              <span>อัปโหลดรูปภาพ</span>
             </button>
             <input
               type="file"
               ref={fileInputRef}
               accept="image/*"
               className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+              onChange={(e) => {
+                if (e.target.files?.[0]) {
+                  handleFileSelect(e.target.files[0]);
+                  e.target.value = '';
+                }
+              }}
             />
           </div>
 
           {scanning && (
             <div className="mt-4 flex items-center gap-2 px-4 py-2 rounded-full bg-primary-500/15 border border-primary-500/30 text-primary-600 dark:text-primary-300 text-xs font-bold animate-pulse">
               <div className="w-4 h-4 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
-              <span>AI Vision กำลังวิเคราะห์ข้อความและสินค้า...</span>
+              <span>กำลังอ่านรายการสินค้าและราคาจากใบเสร็จ...</span>
             </div>
           )}
         </div>
@@ -436,7 +620,8 @@ export default function ReceiptScannerPage() {
             {/* Extracted Items List */}
             <div className="space-y-3">
               {parsedItems.map((it, idx) => {
-                const autoEmoji = getAutoEmoji(it.name);
+                const autoEmoji = getAutoEmoji(it.name || 'สินค้า');
+                const dupItem = findDuplicateInFridge(it.name, it.targetFridgeId);
 
                 return (
                   <div
@@ -444,7 +629,7 @@ export default function ReceiptScannerPage() {
                     className="bg-surface-container-low p-3.5 rounded-2xl space-y-2 border border-border/60"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className="w-10 h-10 rounded-2xl bg-surface-container-lowest flex items-center justify-center text-xl shrink-0 shadow-xs border border-border">
                           <span>{autoEmoji}</span>
                         </div>
@@ -452,9 +637,16 @@ export default function ReceiptScannerPage() {
                           <input
                             type="text"
                             value={it.name}
+                            placeholder="ระบุชื่อสินค้า..."
                             onChange={(e) => updateItem(idx, { name: e.target.value })}
                             className="font-sans font-medium text-sm text-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary-500 outline-none w-full truncate"
                           />
+                          {dupItem && (
+                            <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] font-semibold">
+                              <AlertTriangle className="w-3 h-3 shrink-0" />
+                              <span>มีในตู้นี้แล้ว ({dupItem.quantity}) • จะรวมจำนวนให้อัตโนมัติเพื่อไม่ให้ซ้ำ</span>
+                            </div>
+                          )}
                           <div className="flex items-center flex-wrap gap-2 mt-1">
                             {/* Editable Price Input */}
                             <div className="flex items-center gap-1 bg-surface-container px-2.5 py-1 rounded-xl border border-border/80 focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500/20">
@@ -544,6 +736,16 @@ export default function ReceiptScannerPage() {
               })}
             </div>
 
+            {/* Add Missing Item Row Button */}
+            <button
+              type="button"
+              onClick={addManualRow}
+              className="w-full py-2.5 rounded-xl border border-dashed border-border hover:border-primary-500 text-xs font-semibold text-muted hover:text-primary-600 flex items-center justify-center gap-1.5 transition"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>เพิ่มรายการสินค้าที่ตกหล่น</span>
+            </button>
+
             {/* Receipt Total Summary */}
             <div className="bg-surface-container rounded-2xl p-4 flex items-center justify-between border border-border/80">
               <div className="flex items-center gap-2 text-foreground">
@@ -600,7 +802,7 @@ export default function ReceiptScannerPage() {
           <div className="space-y-2">
             <div className="flex items-baseline justify-between">
               <div>
-                <span className="font-heading text-xl sm:text-2xl font-extrabold text-on-surface">
+                <span className="font-heading text-xl sm:text-2xl font-bold text-on-surface">
                   ฿{budgetSummary.totalSpent.toLocaleString()}
                 </span>
                 <span className="text-xs text-on-surface-variant font-medium">
@@ -713,5 +915,21 @@ export default function ReceiptScannerPage() {
         )}
       </div>
     </MainLayout>
+  );
+}
+
+export default function ReceiptScannerPage() {
+  return (
+    <Suspense
+      fallback={
+        <MainLayout>
+          <div className="flex items-center justify-center min-h-[50vh]">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
+          </div>
+        </MainLayout>
+      }
+    >
+      <ReceiptScannerContent />
+    </Suspense>
   );
 }

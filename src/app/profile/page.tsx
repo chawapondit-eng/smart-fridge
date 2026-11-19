@@ -6,6 +6,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { useHousehold } from '@/contexts/HouseholdContext';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { createClient } from '@/lib/supabase/client';
+import { FullPageAnimation } from '@/components/ui/FullPageAnimation';
 import toast from 'react-hot-toast';
 import {
   User,
@@ -39,6 +40,7 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showLogoutAnimation, setShowLogoutAnimation] = useState(false);
 
   useEffect(() => {
     if (user?.display_name) {
@@ -82,7 +84,7 @@ export default function ProfilePage() {
 
     setSaving(true);
     try {
-      let payload: Record<string, unknown> = {
+      const payload: Record<string, unknown> = {
         id: authUser.id,
         display_name: displayName.trim(),
         avatar_url: avatarUrl || null,
@@ -122,12 +124,23 @@ export default function ProfilePage() {
   }
 
   async function handleLogout() {
+    setShowLogoutAnimation(true);
     try {
       await supabase.auth.signOut();
-      toast.success('ออกจากระบบแล้ว');
-      router.push('/login');
-      router.refresh();
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('smart-fridge-current-household');
+      }
+      setTimeout(() => {
+        toast.success('ออกจากระบบเรียบร้อยแล้ว');
+        if (typeof window !== 'undefined') {
+          window.location.replace('/login');
+        } else {
+          router.replace('/login');
+          router.refresh();
+        }
+      }, 1100);
     } catch {
+      setShowLogoutAnimation(false);
       toast.error('ออกจากระบบไม่สำเร็จ');
     }
   }
@@ -136,9 +149,16 @@ export default function ProfilePage() {
 
   return (
     <MainLayout>
+      {showLogoutAnimation && (
+        <FullPageAnimation
+          type="logout"
+          title="กำลังออกจากระบบ CheckTuYen..."
+          subtitle="ปิดประตูตู้เย็นและเคลียร์ข้อมูลเรียบร้อย แล้วพบกันใหม่นะ 👋"
+        />
+      )}
       <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             โปรไฟล์ &amp; ตั้งค่า ⚙️
           </h1>
           <p className="text-sm text-muted mt-1">

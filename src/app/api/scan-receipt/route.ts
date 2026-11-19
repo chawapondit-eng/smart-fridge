@@ -29,33 +29,66 @@ function guessUnit(name: string): string {
   return 'ชิ้น';
 }
 
-// แยก JSON Array ออกจากข้อความ AI อย่างปลอดภัย
-function extractJsonArray(text: string): unknown[] | null {
+// แปลงข้อความราคาเป็นตัวเลข
+function extractPriceNumber(priceStr?: string): number {
+  if (!priceStr) return 0;
+  const cleaned = priceStr.replace(/,/g, '');
+  const m = cleaned.match(/(\d+(?:\.\d{1,2})?)/);
+  return m ? parseFloat(m[1]) : 0;
+}
+
+// แยกข้อมูลร้านค้าและรายการสินค้าจากข้อความ AI อย่างปลอดภัย
+function extractReceiptPayload(text: string): { store?: string; items: unknown[] } | null {
+  const stripped = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+
   try {
-    const direct = JSON.parse(text.replace(/```json/gi, '').replace(/```/g, '').trim());
-    if (Array.isArray(direct)) return direct;
+    const direct = JSON.parse(stripped);
+    if (Array.isArray(direct)) return { items: direct };
+    if (direct && typeof direct === 'object') {
+      const items = Array.isArray(direct.items)
+        ? direct.items
+        : Array.isArray(direct.products)
+        ? direct.products
+        : null;
+      if (items) {
+        return {
+          store: typeof direct.store === 'string' ? direct.store.trim() : undefined,
+          items,
+        };
+      }
+    }
   } catch {}
 
-  // หา [ และ ]
-  const startIdx = text.indexOf('[');
-  const endIdx = text.lastIndexOf(']');
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    const candidate = text.substring(startIdx, endIdx + 1);
+  // หา { store, items: [...] }
+  const objStart = stripped.indexOf('{');
+  const objEnd = stripped.lastIndexOf('}');
+  if (objStart !== -1 && objEnd !== -1 && objEnd > objStart) {
+    const candidate = stripped.substring(objStart, objEnd + 1);
     try {
       const parsed = JSON.parse(candidate);
-      if (Array.isArray(parsed)) return parsed;
+      if (parsed && Array.isArray(parsed.items)) {
+        return {
+          store: typeof parsed.store === 'string' ? parsed.store.trim() : undefined,
+          items: parsed.items,
+        };
+      }
+      if (parsed && Array.isArray(parsed.products)) {
+        return {
+          store: typeof parsed.store === 'string' ? parsed.store.trim() : undefined,
+          items: parsed.products,
+        };
+      }
     } catch {}
   }
 
-  // หา { items: [...] }
-  const objStart = text.indexOf('{');
-  const objEnd = text.lastIndexOf('}');
-  if (objStart !== -1 && objEnd !== -1 && objEnd > objStart) {
-    const candidate = text.substring(objStart, objEnd + 1);
+  // หา [ และ ]
+  const startIdx = stripped.indexOf('[');
+  const endIdx = stripped.lastIndexOf(']');
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    const candidate = stripped.substring(startIdx, endIdx + 1);
     try {
       const parsed = JSON.parse(candidate);
-      if (parsed && Array.isArray(parsed.items)) return parsed.items;
-      if (parsed && Array.isArray(parsed.products)) return parsed.products;
+      if (Array.isArray(parsed)) return { items: parsed };
     } catch {}
   }
 
@@ -87,15 +120,22 @@ function parseThaiReceiptText(rawText: string): ParsedItem[] {
     }
 
     // แบบที่ 1: "1. ข้าวผัดพริก กระเพรา 1 45.00V บาท" หรือ "2. ข้าวเปล่า 1 10.00 บาท"
-    const match = line.match(/^(\d+)[\.\s]+(.+?)(?:\s+(\d+)\s+([\d\.]+.*))?$/);
+    const match = line.match(/^(\d+)[\.\s]+(.+?)(?:\s+(\d+)\s+([\d,\.]+.*))?$/);
     if (match) {
       let rawName = match[2].trim();
       let qty = match[3] ? parseInt(match[3], 10) : 1;
+      let price = extractPriceNumber(match[4]);
 
-      const innerMatch = rawName.match(/^(.+?)\s+(\d+)\s+([\d\.]+.*)$/);
+      const innerMatch = rawName.match(/^(.+?)\s+(\d+)\s+([\d,\.]+.*)$/);
       if (innerMatch) {
         rawName = innerMatch[1].trim();
         qty = parseInt(innerMatch[2], 10) || 1;
+        price = extractPriceNumber(innerMatch[3]);
+      } else if (price === 0) {
+        const trailingPrice = rawName.match(/\s+([\d,]+\.\d{2})\s*(?:บาท|baht|v|b)?$/i);
+        if (trailingPrice) {
+          price = extractPriceNumber(trailingPrice[1]);
+        }
       }
 
       rawName = cleanItemName(rawName);
@@ -106,17 +146,19 @@ function parseThaiReceiptText(rawText: string): ParsedItem[] {
           name: rawName,
           quantity: qty || 1,
           unit: guessUnit(rawName),
+          price,
           confidence: 0.90,
         });
         continue;
       }
     }
 
-    // แบบที่ 2: "ข้าวผัดกะเพรา 1 50"
-    const matchQtyPrice = line.match(/^(.+?)\s+(\d+)\s+([\d\.]+.*)$/);
+    // แบบที่ 2: "ข้าวผัดกะเพรา 1 50" หรือ "นมสด 45.00"
+    const matchQtyPrice = line.match(/^(.+?)\s+(\d+)\s+([\d,\.]+.*)$/);
     if (matchQtyPrice) {
       const rawName = cleanItemName(matchQtyPrice[1].trim());
       const qty = parseInt(matchQtyPrice[2], 10) || 1;
+      const price = extractPriceNumber(matchQtyPrice[3]);
 
       if (rawName.length >= 2 && !ignoreKeywords.some((k) => rawName.toLowerCase().includes(k))) {
         items.push({
@@ -124,6 +166,7 @@ function parseThaiReceiptText(rawText: string): ParsedItem[] {
           name: rawName,
           quantity: qty,
           unit: guessUnit(rawName),
+          price,
           confidence: 0.85,
         });
       }
@@ -166,6 +209,9 @@ export async function POST(req: NextRequest) {
 
       for (const model of modelsToTry) {
         try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15000);
+
           const geminiRes = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
             {
@@ -174,26 +220,32 @@ export async function POST(req: NextRequest) {
                 'Content-Type': 'application/json',
                 'x-goog-api-key': apiKey,
               },
+              signal: controller.signal,
               body: JSON.stringify({
                 contents: [
                   {
                     parts: [
                       {
                         text: `คุณคือ AI ผู้เชี่ยวชาญด้านการอ่านใบเสร็จรับเงิน (Receipt OCR) สำหรับนำอาหารและของสดเข้าตู้เย็น
-จงอ่านภาพใบเสร็จนี้อย่างละเอียด และดึงเฉพาะ "รายการสินค้าอาหาร เครื่องดื่ม หรือของสด" เท่านั้น
-(ไม่ต้องเอา ยอดรวม, ภาษี VAT, เงินสด, เงินทอน, เลขที่ใบเสร็จ, ชื่อสาขา, รหัสบัตร, วันที่, หรือข้อความอื่นๆ ที่ไม่ใช่สินค้า)
+จงอ่านภาพใบเสร็จนี้อย่างละเอียด และดึง:
+1. "store": ชื่อร้านค้าหรือซูเปอร์มาร์เก็ตบนหัวใบเสร็จ (เช่น 7-Eleven, Lotus's, Big C, Tops, Makro, GrabFood หรือ "ซูเปอร์มาร์เก็ต" หากไม่ชัดเจน)
+2. "items": เฉพาะรายการสินค้าอาหาร เครื่องดื่ม หรือของสดเท่านั้น (ไม่ต้องเอายอดรวม, VAT, เงินสด, เงินทอน, ส่วนลดรวม, วันที่, เลขที่ใบเสร็จ)
+สำคัญมาก: ให้ดึงตัวเลขราคา (price) ของแต่ละรายการให้แม่นยำที่สุดเป็นตัวเลขทศนิยม (เช่น 45.00V ให้ส่ง 45)
 
-ตอบกลับเป็น JSON array ของวัตถุเท่านั้นในรูปแบบนี้:
-[
-  {
-    "name": "ชื่อสินค้าภาษาไทยตามที่ปรากฏในใบเสร็จ เช่น ข้าวผัดพริกกระเพรา หรือ ข้าวเปล่า",
-    "quantity": 1,
-    "unit": "หน่วยนับที่เหมาะสม เช่น จาน, กล่อง, ขวด, แพ็ก, ชิ้น, ถุง",
-    "price": 45.0,
-    "confidence": 0.95
-  }
-]
-คำสั่งเด็ดขาด: ให้ตอบกลับเป็น JSON array ล้วนๆ เท่านั้น ห้ามใส่คำอธิบายนำหน้าหรือต่อท้าย ห้ามใส่เครื่องหมาย markdown codeblock`,
+ตอบกลับเป็น JSON object รูปแบบนี้เท่านั้น:
+{
+  "store": "ชื่อร้านค้า",
+  "items": [
+    {
+      "name": "ชื่อสินค้าภาษาไทยตามที่ปรากฏในใบเสร็จ",
+      "quantity": 1,
+      "unit": "หน่วยนับที่เหมาะสม เช่น จาน, กล่อง, ขวด, แพ็ก, ชิ้น, ถุง",
+      "price": 45.0,
+      "confidence": 0.95
+    }
+  ]
+}
+คำสั่งเด็ดขาด: ตอบกลับเป็น JSON ล้วนๆ เท่านั้น ห้ามใส่คำอธิบายนำหน้าหรือต่อท้าย ห้ามใส่เครื่องหมาย markdown codeblock`,
                       },
                       {
                         inline_data: {
@@ -210,27 +262,39 @@ export async function POST(req: NextRequest) {
               }),
             }
           );
+          clearTimeout(timeoutId);
 
           if (geminiRes.ok) {
             const geminiData = await geminiRes.json();
             const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            const parsed = extractJsonArray(rawText);
+            const payload = extractReceiptPayload(rawText);
 
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              const items: ParsedItem[] = parsed.map((item: any, idx: number) => ({
-                id: String(idx + 1),
-                name: String(item.name || '').trim(),
-                quantity: Number(item.quantity) || 1,
-                unit: String(item.unit || guessUnit(String(item.name || ''))).trim(),
-                price: Number(item.price) || 0,
-                confidence: Number(item.confidence) || 0.95,
-              }));
+            if (payload && Array.isArray(payload.items) && payload.items.length > 0) {
+              const items: ParsedItem[] = payload.items
+                .map((rawItem: unknown, idx: number) => {
+                  const item = (rawItem || {}) as Record<string, unknown>;
+                  return {
+                    id: String(idx + 1),
+                    name: String(item.name || '').trim(),
+                    quantity: Number(item.quantity) || 1,
+                    unit: String(item.unit || guessUnit(String(item.name || ''))).trim(),
+                    price:
+                      typeof item.price === 'number'
+                        ? item.price
+                        : extractPriceNumber(String(item.price || '0')),
+                    confidence: Number(item.confidence) || 0.95,
+                  };
+                })
+                .filter((it) => it.name.length > 0);
 
-              return NextResponse.json({
-                success: true,
-                engine: `gemini_vision (${model})`,
-                items,
-              });
+              if (items.length > 0) {
+                return NextResponse.json({
+                  success: true,
+                  engine: `gemini_vision (${model})`,
+                  store: payload.store || 'ซูเปอร์มาร์เก็ต',
+                  items,
+                });
+              }
             }
           } else {
             const errBody = await geminiRes.text();

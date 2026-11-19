@@ -103,7 +103,7 @@ export default function HouseholdPage() {
           display_name: user?.display_name || authUser.email?.split('@')[0] || 'สมาชิก',
           avatar_url: user?.avatar_url || null,
         };
-        userMap.set(authUser.id, selfProfile as any);
+        userMap.set(authUser.id, selfProfile);
         try {
           await supabase.from('users').upsert(selfProfile);
         } catch {
@@ -313,7 +313,7 @@ export default function HouseholdPage() {
                 <Home className="w-5 h-5" />
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground">
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground">
                   {currentHousehold?.name || 'จัดการครัวเรือน'}
                 </h1>
                 <p className="text-xs text-muted">
@@ -358,7 +358,7 @@ export default function HouseholdPage() {
                   คุณกำลังอยู่ในครัวเรือน &quot;{currentHousehold.name}&quot; ซึ่งเป็นบ้านที่สร้างแยกไว้
                 </p>
                 <p className="text-amber-700/80 dark:text-amber-400/80 mt-0.5">
-                  หากต้องการเข้าบ้าน &quot;เจมมี่&quot; เพื่อแชร์ตู้เย็นร่วมกับครอบครัว กรุณากดปุ่มด้านขวาเพื่อกรอกรหัสคำเชิญ
+                  หากต้องการเข้าร่วมบ้านหลักเพื่อแชร์ตู้เย็นร่วมกับครอบครัว กรุณากดปุ่มด้านขวาเพื่อกรอกรหัสคำเชิญ
                 </p>
               </div>
             </div>
@@ -620,13 +620,13 @@ export default function HouseholdPage() {
                   type="text"
                   value={joinCodeInput}
                   onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
-                  placeholder="เช่น HH-6C70F490 หรือ FRIDGE-XXXXXX"
+                  placeholder="เช่น #TY-6C70F4 หรือ FRIDGE-XXXXXX"
                   required
                   autoFocus
                   className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground uppercase tracking-widest font-mono focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
                 />
                 <p className="text-[11px] text-muted mt-1">
-                  * สามารถกรอกรหัสขึ้นต้นด้วย HH- หรือ FRIDGE- หรือชื่อบ้านก็ได้
+                  * สามารถกรอกรหัสขึ้นต้นด้วย #TY- หรือ HH- หรือ FRIDGE- หรือชื่อบ้านก็ได้
                 </p>
               </div>
 

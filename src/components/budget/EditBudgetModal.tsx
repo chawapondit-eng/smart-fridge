@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { X, Wallet, Check } from 'lucide-react';
-import { setWeeklyBudget } from '@/lib/budget';
+import { saveWeeklyBudgetToDb } from '@/lib/budget';
+import { createClient } from '@/lib/supabase/client';
+import { useHousehold } from '@/contexts/HouseholdContext';
 
 interface EditBudgetModalProps {
   isOpen: boolean;
@@ -20,11 +22,20 @@ export function EditBudgetModal({
   currentBudget,
   onSuccess,
 }: EditBudgetModalProps) {
+  const supabase = createClient();
+  const { authUser } = useHousehold();
   const [amount, setAmount] = useState(String(currentBudget));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setAmount(String(currentBudget));
+    }
+  }, [currentBudget, isOpen]);
 
   if (!isOpen) return null;
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const parsed = parseFloat(amount);
     if (isNaN(parsed) || parsed <= 0) {
@@ -32,10 +43,15 @@ export function EditBudgetModal({
       return;
     }
 
-    setWeeklyBudget(householdId, parsed);
-    toast.success(`ตั้งค่างบประมาณสัปดาห์นี้เป็น ฿${parsed.toLocaleString()} เรียบร้อยแล้ว! 🎯`);
-    onSuccess(parsed);
-    onClose();
+    setSaving(true);
+    try {
+      await saveWeeklyBudgetToDb(supabase, householdId, authUser?.id, parsed);
+      toast.success(`ตั้งค่างบประมาณสัปดาห์นี้เป็น ฿${parsed.toLocaleString()} เรียบร้อยแล้ว! 🎯`);
+      onSuccess(parsed);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -101,10 +117,11 @@ export function EditBudgetModal({
           <div className="pt-2">
             <button
               type="submit"
-              className="w-full py-3 rounded-2xl bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white font-bold text-sm shadow-md shadow-primary-500/25 flex items-center justify-center gap-2 active:scale-95 transition"
+              disabled={saving}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white font-bold text-sm shadow-md shadow-primary-500/25 flex items-center justify-center gap-2 active:scale-95 transition disabled:opacity-60"
             >
               <Check className="w-4 h-4" />
-              <span>บันทึกงบประมาณ</span>
+              <span>{saving ? 'กำลังบันทึก...' : 'บันทึกงบประมาณ'}</span>
             </button>
           </div>
         </form>

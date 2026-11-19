@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { FullPageAnimation } from '@/components/ui/FullPageAnimation';
 import { ShareHouseholdModal } from '@/components/household/ShareHouseholdModal';
+import { addDaysFromBangkokToday } from '@/lib/date';
 
 interface AppTopbarProps {
   onToggleSidebar?: () => void;
@@ -45,8 +46,7 @@ export function AppTopbar({}: AppTopbarProps) {
 
         if (itemRows && itemRows.length > 0) {
           const itemIds = itemRows.map((i) => i.id);
-          const now = new Date();
-          const in3Days = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          const in3Days = addDaysFromBangkokToday(3);
 
           const { count } = await supabase
             .from('item_batches')
@@ -70,11 +70,18 @@ export function AppTopbar({}: AppTopbarProps) {
     setShowLogoutAnimation(true);
     try {
       await supabase.auth.signOut();
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('smart-fridge-current-household');
+      }
       setTimeout(() => {
         toast.success('ออกจากระบบเรียบร้อย');
-        router.push('/login');
-        router.refresh();
-      }, 1200);
+        if (typeof window !== 'undefined') {
+          window.location.replace('/login');
+        } else {
+          router.replace('/login');
+          router.refresh();
+        }
+      }, 1100);
     } catch {
       setShowLogoutAnimation(false);
       toast.error('ออกจากระบบไม่สำเร็จ');

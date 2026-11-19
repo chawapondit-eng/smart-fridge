@@ -11,44 +11,32 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const THEME_KEY = 'smart-fridge-theme';
+const THEME_KEY = 'smart-fridge-theme-v2';
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(THEME_KEY) as ThemeMode | null;
-      if (saved && ['light', 'dark', 'system'].includes(saved)) {
+      if (saved && ['light', 'dark'].includes(saved)) {
         return saved;
       }
     }
-    return 'system';
+    // Default to Light Theme per UI Reference
+    return 'light';
   });
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
 
-  // Apply theme class ที่ <html>
+  // Apply theme class ที่ <html> (Default to Light Theme)
   useEffect(() => {
     const root = document.documentElement;
 
     function applyTheme(mode: ThemeMode) {
-      if (mode === 'system') {
-        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        root.classList.toggle('dark', systemDark);
-        setResolvedTheme(systemDark ? 'dark' : 'light');
-      } else {
-        root.classList.toggle('dark', mode === 'dark');
-        setResolvedTheme(mode);
-      }
+      const isDark = mode === 'dark';
+      root.classList.toggle('dark', isDark);
+      setResolvedTheme(isDark ? 'dark' : 'light');
     }
 
     applyTheme(theme);
-
-    // ฟัง System theme change
-    if (theme === 'system') {
-      const media = window.matchMedia('(prefers-color-scheme: dark)');
-      const handler = () => applyTheme('system');
-      media.addEventListener('change', handler);
-      return () => media.removeEventListener('change', handler);
-    }
   }, [theme]);
 
   function setTheme(newTheme: ThemeMode) {

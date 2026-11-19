@@ -17,6 +17,27 @@ export function setWeeklyBudget(householdId: string, amount: number): void {
   localStorage.setItem(key, String(amount));
 }
 
+export async function saveWeeklyBudgetToDb(
+  supabase: SupabaseClient,
+  householdId: string,
+  userId: string | undefined,
+  amount: number
+): Promise<void> {
+  setWeeklyBudget(householdId, amount);
+  try {
+    await supabase.from('activity_logs').insert({
+      household_id: householdId,
+      user_id: userId || null,
+      action: 'budget_updated',
+      details: {
+        weekly_budget: amount,
+      },
+    });
+  } catch {
+    // fallback already saved in localStorage
+  }
+}
+
 export interface WeeklyBudgetSummary {
   budget: number;
   totalSpent: number;
@@ -31,7 +52,29 @@ export async function fetchWeeklyBudgetSummary(
   supabase: SupabaseClient,
   householdId: string
 ): Promise<WeeklyBudgetSummary> {
-  const budget = getWeeklyBudget(householdId);
+  let budget = getWeeklyBudget(householdId);
+
+  // ดึงงบประมาณล่าสุดของครัวเรือนจาก Supabase (ซิงค์ร่วมกันทุกสมาชิกในบ้าน)
+  try {
+    const { data: latestBudgetLog } = await supabase
+      .from('activity_logs')
+      .select('details')
+      .eq('household_id', householdId)
+      .eq('action', 'budget_updated')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const dbBudget = Number(
+      (latestBudgetLog?.details as Record<string, unknown> | null)?.weekly_budget
+    );
+    if (!isNaN(dbBudget) && dbBudget > 0) {
+      budget = dbBudget;
+      setWeeklyBudget(householdId, dbBudget);
+    }
+  } catch {
+    // ignore
+  }
 
   // คำนวณวันจันทร์ของสัปดาห์ปัจจุบัน (Monday 00:00:00)
   const now = new Date();

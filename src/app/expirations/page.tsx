@@ -14,10 +14,17 @@ import {
   Search,
   Filter,
 } from 'lucide-react';
+import {
+  getDaysUntilExpiry,
+  formatThaiDate,
+  formatExpiryLabel,
+  normalizeDateString,
+} from '@/lib/date';
 
 interface ExpiryItemWithMeta {
   batchId: string;
   itemId: string;
+  fridgeId: string;
   name: string;
   unit: string;
   quantity: number;
@@ -88,26 +95,22 @@ export default function ExpirationPage() {
       if (batchError) throw batchError;
 
       if (batchRows) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
         const list: ExpiryItemWithMeta[] = batchRows
-          .filter((b) => Number(b.quantity) > 0)
+          .filter((b) => Number(b.quantity) > 0 && Boolean(normalizeDateString(b.expiry_date)))
           .map((b) => {
             const it = itemMap.get(b.item_id);
             const fr = it ? fridgeMap.get(it.fridge_id) : null;
-            const exp = new Date(b.expiry_date);
-            exp.setHours(0, 0, 0, 0);
-            const diffTime = exp.getTime() - today.getTime();
-            const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const cleanDate = normalizeDateString(b.expiry_date)!;
+            const daysLeft = getDaysUntilExpiry(cleanDate) ?? 0;
 
             return {
               batchId: b.id,
               itemId: b.item_id,
+              fridgeId: it?.fridge_id || '',
               name: it?.name || 'สินค้า',
               unit: it?.unit || 'ชิ้น',
               quantity: Number(b.quantity),
-              expiryDate: b.expiry_date,
+              expiryDate: cleanDate,
               daysLeft,
               fridgeName: fr?.name || 'ตู้เย็น',
               fridgeIcon: fr?.icon || '❄️',
@@ -135,7 +138,7 @@ export default function ExpirationPage() {
 
   const filtered = batches.filter(b => {
     const matchSearch = b.name.toLowerCase().includes(search.toLowerCase());
-    const matchFridge = selectedFridgeId === 'all' || fridges.find(f => f.name === b.fridgeName)?.id === selectedFridgeId;
+    const matchFridge = selectedFridgeId === 'all' || b.fridgeId === selectedFridgeId;
 
     let matchTab = true;
     if (activeTab === 'expired') matchTab = b.daysLeft < 0;
@@ -151,7 +154,7 @@ export default function ExpirationPage() {
       <div className="space-y-6 animate-in fade-in duration-300">
         {/* Header */}
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
             <span>จัดการวันหมดอายุ</span>
             <Clock className="w-6 h-6 text-primary-600" />
           </h1>
@@ -285,7 +288,7 @@ export default function ExpirationPage() {
             ไม่พบรายการในหมวดนี้
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
             {filtered.map((b) => (
               <div
                 key={b.batchId}
@@ -306,7 +309,7 @@ export default function ExpirationPage() {
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5" />
-                        <span>วันหมดอายุ: {b.expiryDate}</span>
+                        <span>วันหมดอายุ: {formatThaiDate(b.expiryDate)}</span>
                       </span>
                     </div>
                   </div>
@@ -314,13 +317,13 @@ export default function ExpirationPage() {
 
                 <div className="flex items-center justify-between sm:justify-end gap-3 pt-3 sm:pt-0 border-t sm:border-t-0 border-border">
                   {b.daysLeft < 0 ? (
-                    <StatusBadge status="expired" label={`หมดอายุมาแล้ว ${Math.abs(b.daysLeft)} วัน`} />
+                    <StatusBadge status="expired" label={formatExpiryLabel(b.daysLeft)} />
                   ) : b.daysLeft === 0 ? (
-                    <StatusBadge status="expiring_soon" label="หมดอายุวันนี้!" />
+                    <StatusBadge status="expiring_soon" label={formatExpiryLabel(b.daysLeft)} />
                   ) : b.daysLeft <= 3 ? (
-                    <StatusBadge status="expiring_soon" label={`เหลืออีก ${b.daysLeft} วัน`} />
+                    <StatusBadge status="expiring_soon" label={formatExpiryLabel(b.daysLeft)} />
                   ) : (
-                    <StatusBadge status="fresh" label={`เหลืออีก ${b.daysLeft} วัน`} />
+                    <StatusBadge status="fresh" label={formatExpiryLabel(b.daysLeft)} />
                   )}
 
                   <QuantityStepper

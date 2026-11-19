@@ -1,61 +1,138 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  classifyIngredients,
+  pickWeightedFocusIngredients,
+  validateGeneratedRecipes,
+  type RawIngredientItem,
+  type GeneratedRecipeCandidate,
+} from '@/lib/recipeEngine';
 
 export const runtime = 'nodejs';
 
-interface IngredientInput {
-  name: string;
-  quantity?: number;
-  unit?: string;
-  fridgeName?: string;
-}
+async function callGeminiForRecipes(
+  apiKey: string,
+  systemPrompt: string,
+  temperature: number
+): Promise<{ candidates: GeneratedRecipeCandidate[] | null; modelUsed: string; lastError: string }> {
+  const modelsToTry = [
+    'gemini-3.5-flash-lite',
+    'gemini-3.5-flash',
+    'gemini-3.7-flash',
+    'gemini-3.8-flash',
+  ];
 
-const CATEGORY_IMAGES: Record<string, string> = {
-  'stir-fry': 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=700&q=80',
-  soup: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?w=700&q=80',
-  curry: 'https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=700&q=80',
-  salad: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=700&q=80',
-  rice: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=700&q=80',
-  noodles: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=700&q=80',
-  egg: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?w=700&q=80',
-  default: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=700&q=80',
-};
+  let lastError = '';
 
-function getCategoryPhoto(category?: string, name?: string): string {
-  const cat = (category || '').toLowerCase();
-  if (cat.includes('stir') || cat.includes('ผัด')) return CATEGORY_IMAGES['stir-fry'];
-  if (cat.includes('soup') || cat.includes('ต้ม') || cat.includes('แกงจืด')) return CATEGORY_IMAGES.soup;
-  if (cat.includes('curry') || cat.includes('แกง')) return CATEGORY_IMAGES.curry;
-  if (cat.includes('salad') || cat.includes('สลัด') || cat.includes('ยำ')) return CATEGORY_IMAGES.salad;
-  if (cat.includes('rice') || cat.includes('ข้าว')) return CATEGORY_IMAGES.rice;
-  if (cat.includes('noodle') || cat.includes('เส้น')) return CATEGORY_IMAGES.noodles;
-  if (cat.includes('egg') || cat.includes('ไข่')) return CATEGORY_IMAGES.egg;
+  for (const model of modelsToTry) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 14000);
 
-  // Fallback to name match
-  const n = (name || '').toLowerCase();
-  if (n.includes('ผัด') || n.includes('ทอด')) return CATEGORY_IMAGES['stir-fry'];
-  if (n.includes('ต้ม') || n.includes('ซุป') || n.includes('แกงจืด')) return CATEGORY_IMAGES.soup;
-  if (n.includes('แกง') || n.includes('พะแนง')) return CATEGORY_IMAGES.curry;
-  if (n.includes('สลัด') || n.includes('ยำ')) return CATEGORY_IMAGES.salad;
-  if (n.includes('ข้าว')) return CATEGORY_IMAGES.rice;
-  if (n.includes('ก๋วยเตี๋ยว') || n.includes('เส้น') || n.includes('ผัดไทย')) return CATEGORY_IMAGES.noodles;
-  if (n.includes('ไข่')) return CATEGORY_IMAGES.egg;
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: systemPrompt }] }],
+            generationConfig: {
+              temperature,
+              maxOutputTokens: 1800,
+            },
+          }),
+        }
+      );
+      clearTimeout(timeoutId);
 
-  return CATEGORY_IMAGES.default;
+      if (!res.ok) {
+        lastError = `Gemini ${model} HTTP ${res.status}`;
+        continue;
+      }
+
+      const raw = await res.json();
+      const text = raw.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+      if (!text) {
+        lastError = `Gemini ${model} empty response`;
+        continue;
+      }
+
+      let clean = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const startIdx = clean.indexOf('[');
+      const endIdx = clean.lastIndexOf(']');
+      if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+        clean = clean.substring(startIdx, endIdx + 1);
+      }
+
+      const parsed = JSON.parse(clean);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return {
+          candidates: parsed as GeneratedRecipeCandidate[],
+          modelUsed: model,
+          lastError: '',
+        };
+      }
+    } catch (e: unknown) {
+      lastError = e instanceof Error ? e.message : String(e);
+      console.error(`Gemini model ${model} failed:`, lastError);
+    }
+  }
+
+  return { candidates: null, modelUsed: '', lastError };
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const ingredients: (string | IngredientInput)[] = body.ingredients || [];
-    const preferences: string[] = body.preferences || ['easy'];
 
-    const ingredientNames = ingredients
-      .map((i) => (typeof i === 'string' ? i.trim() : i.name?.trim()))
-      .filter(Boolean);
+    // รองรับทั้งรูปแบบใหม่ (allItems) และรูปแบบเดิม (priorityIngredients + otherIngredients + expiredIngredients)
+    const incomingItems: RawIngredientItem[] = [];
+    if (Array.isArray(body.allItems)) {
+      incomingItems.push(...body.allItems);
+    } else {
+      if (Array.isArray(body.priorityIngredients)) incomingItems.push(...body.priorityIngredients);
+      if (Array.isArray(body.otherIngredients)) incomingItems.push(...body.otherIngredients);
+      if (Array.isArray(body.ingredients)) {
+        for (const it of body.ingredients) {
+          incomingItems.push(typeof it === 'string' ? { name: it } : it);
+        }
+      }
+    }
 
-    if (ingredientNames.length === 0) {
+    const explicitExpired: RawIngredientItem[] = Array.isArray(body.expiredIngredients)
+      ? body.expiredIngredients
+      : [];
+
+    const fridgeName: string =
+      typeof body.fridgeName === 'string' && body.fridgeName.trim()
+        ? body.fridgeName.trim()
+        : 'ตู้เย็นที่เลือก';
+
+    const preferences: string[] = Array.isArray(body.preferences) ? body.preferences : ['easy'];
+    const cookingTime: string = typeof body.cookingTime === 'string' ? body.cookingTime : 'any';
+    const servings: string = typeof body.servings === 'string' ? body.servings : '2 คน';
+    const previousRecipeNames: string[] = Array.isArray(body.previousRecipeNames)
+      ? body.previousRecipeNames.map((n: unknown) => String(n).trim()).filter(Boolean)
+      : [];
+
+    // 1. กรองและจำแนกวัตถุดิบฝั่ง Backend ด้วย Asia/Bangkok Calendar Date (ไม่พึ่งพาแค่ Frontend/Prompt)
+    const classified = classifyIngredients(incomingItems);
+    const allExpired: RawIngredientItem[] = [...classified.expired, ...explicitExpired];
+
+    if (classified.usable.length === 0) {
+      const msg =
+        allExpired.length > 0
+          ? `วัตถุดิบในตู้เย็น "${fridgeName}" หมดอายุทั้งหมดแล้ว (${allExpired.length} รายการ) ระบบไม่อนุญาตให้นำของหมดอายุมาแนะนำเมนูอาหาร`
+          : `ไม่มีวัตถุดิบที่พร้อมใช้งานในตู้เย็น "${fridgeName}" กรุณาเพิ่มวัตถุดิบก่อนสุ่มเมนู`;
       return NextResponse.json(
-        { error: 'กรุณาระบุวัตถุดิบเพื่อคิดค้นสูตรอาหาร' },
+        {
+          success: false,
+          error: msg,
+          excludedExpiredCount: allExpired.length,
+        },
         { status: 400 }
       );
     }
@@ -65,191 +142,153 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
       '';
 
+    if (!apiKey) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'ยังไม่ได้ตั้งค่า GEMINI_API_KEY ในไฟล์ .env.local กรุณาตั้งค่า API Key ก่อนใช้งานระบบแนะนำเมนู AI',
+        },
+        { status: 503 }
+      );
+    }
+
+    // 2. Weighted Random Selection: ให้คะแนนสูงกับของใกล้หมดอายุ แต่ยังสุ่มผสมของสดใหม่เพื่อความหลากหลาย
+    const focusCount = Math.min(classified.usable.length, Math.max(2, Math.min(5, classified.usable.length)));
+    const weightedFocus = pickWeightedFocusIngredients(classified.usable, focusCount);
+
     const prefTexts: string[] = [];
-    if (preferences.includes('easy')) prefTexts.push('ทำง่าย ไม่ซับซ้อน ใช้เวลาไม่เกิน 20 นาที');
-    if (preferences.includes('healthy')) prefTexts.push('เน้นเพื่อสุขภาพ ใช้น้ำมันน้อย แคลอรี่ต่ำ');
-    if (preferences.includes('thai')) prefTexts.push('รสชาติไทยจัดจ้าน หรือเมนูฟิวชั่นไทยยอดนิยม');
-    const prefPrompt = prefTexts.length > 0 ? prefTexts.join(', ') : 'ทำง่าย รสชาติกลมกล่อม';
+    if (preferences.includes('easy')) prefTexts.push('ทำง่าย ไม่ซับซ้อน');
+    if (preferences.includes('healthy')) prefTexts.push('เพื่อสุขภาพ ไขมันต่ำ แคลอรี่เหมาะสม');
+    if (preferences.includes('budget')) prefTexts.push('ประหยัดงบ ใช้วัตถุดิบที่มีอยู่ให้คุ้มค่าที่สุด');
+    if (preferences.includes('thai')) prefTexts.push('อาหารไทย');
+    if (preferences.includes('fusion')) prefTexts.push('อาหารฟิวชั่นหรือนานาชาติทำเองได้ง่าย');
 
-    const systemPrompt = `คุณคือยอดเชฟมืออาชีพและผู้ช่วยคิดเมนูอาหารประจำบ้าน CheckTuYen
-ภารกิจ: คิดค้นสูตรอาหารไทยหรือฟิวชั่นที่ทำได้จริงและน่ารับประทานจำนวน 2-3 เมนู
-โดย "ต้องใช้วัตถุดิบใกล้หมดอายุเหล่านี้เป็นหัวใจหลักของจาน": ${ingredientNames.join(', ')}
-เงื่อนไขความต้องการ: ${prefPrompt}
+    if (cookingTime === '15') prefTexts.push('ใช้เวลาทำไม่เกิน 15 นาที');
+    else if (cookingTime === '30') prefTexts.push('ใช้เวลาทำไม่เกิน 30 นาที');
 
-ให้ตอบกลับเป็น JSON Array เท่านั้น ไม่มีข้อความเกริ่นหรือคำลงท้าย ห้ามใส่เครื่องหมายอื่นนอกจาก JSON
-รูปแบบ JSON:
+    const prefPrompt =
+      prefTexts.length > 0 ? prefTexts.join(', ') : 'อร่อย ทำได้จริงที่บ้าน และหลากหลาย';
+
+    const expiringText =
+      classified.expiringSoon.length > 0
+        ? classified.expiringSoon
+            .map(
+              (i) =>
+                `- ${i.name} (คงเหลือ ${i.quantity || 1} ${i.unit || 'ชิ้น'}, ${
+                  i.daysLeft === 0 ? 'หมดอายุวันนี้' : `เหลือ ${i.daysLeft} วัน`
+                })`
+            )
+            .join('\n')
+        : '(ไม่มี)';
+
+    const freshText =
+      classified.fresh.length > 0
+        ? classified.fresh
+            .map((i) => `- ${i.name} (คงเหลือ ${i.quantity || 1} ${i.unit || 'ชิ้น'})`)
+            .join('\n')
+        : '(ไม่มี)';
+
+    const focusNamesText = weightedFocus.map((i) => i.name).join(', ');
+    const forbiddenExpiredText =
+      allExpired.length > 0
+        ? `\nวัตถุดิบที่หมดอายุแล้ว (ห้ามใช้และห้ามกล่าวถึงในสูตรอาหารเด็ดขาด): ${allExpired
+            .map((e) => e.name)
+            .join(', ')}`
+        : '';
+
+    const avoidRepeatText =
+      previousRecipeNames.length > 0
+        ? `\nห้ามซ้ำกับเมนูที่เพิ่งแนะนำไปก่อนหน้านี้: ${previousRecipeNames.slice(-8).join(', ')}`
+        : '';
+
+    const buildPrompt = (strictRetryNote = '') => `คุณคือเชฟมืออาชีพประจำแอป CheckTuYen ที่ช่วยสุ่มแนะนำเมนูอาหารจากวัตถุดิบที่ยังไม่หมดอายุจริงในตู้เย็น "${fridgeName}"
+
+รายการวัตถุดิบที่ยังไม่หมดอายุและพร้อมใช้จริงในตู้เย็น "${fridgeName}":
+[กลุ่มใกล้หมดอายุ — ให้ความสำคัญสูง แต่ไม่จำเป็นต้องบังคับใช้ทุกเมนู]:
+${expiringText}
+
+[กลุ่มยังสดใหม่ — สามารถใช้ร่วมกันหรือสุ่มทำเมนูหลากหลายได้]:
+${freshText}
+
+วัตถุดิบเด่นที่สุ่มได้สำหรับรอบนี้ (Weighted Random Focus): ${focusNamesText}
+ขนาดสำหรับเสิร์ฟ: ${servings}
+เงื่อนไขที่ผู้ใช้เลือก: ${prefPrompt}${forbiddenExpiredText}${avoidRepeatText}${strictRetryNote}
+
+กฎเหล็ก (ห้ามละเมิดเด็ดขาด):
+1. คิดสูตรอาหารที่ทำได้จริงและเข้ากันได้จริงจำนวน 2-3 เมนูที่มีความหลากหลาย (เช่น เมนูหนึ่งเน้นของใกล้หมดอายุ และอีกเมนูสามารถใช้วัตถุดิบสดใหม่หรือผสมกันได้)
+2. ห้ามใช้วัตถุดิบที่หมดอายุแล้วเด็ดขาด!
+3. ห้ามอ้างว่ามีวัตถุดิบใดในตู้เย็น หากวัตถุดิบนั้นไม่ได้อยู่ในรายการวัตถุดิบพร้อมใช้ด้านบน
+4. ระบุ "inFridge": true เฉพาะวัตถุดิบที่มีอยู่ในรายการด้านบนเท่านั้น และระบุ "inFridge": false สำหรับเครื่องปรุงหรือวัตถุดิบที่ต้องซื้อเพิ่ม
+5. ปริมาณวัตถุดิบในสูตรต้องเหมาะสมกับจำนวนคน (${servings}) และไม่เกินจริงจากที่มีอยู่
+
+ตอบกลับเป็น JSON Array ล้วนๆ เท่านั้น ห้ามมีข้อความอื่น ห้ามใส่ markdown codeblock:
 [
   {
     "id": "recipe-1",
-    "name": "ชื่อเมนูภาษาไทย เช่น ผัดกะเพราหมูสับไข่ดาวกรอบ",
-    "nameEn": "Stir-fried Basil Pork with Crispy Fried Egg",
-    "tag": "⭐ แนะนำเคลียร์ของด่วน",
+    "name": "ชื่อเมนูภาษาไทย",
+    "nameEn": "English Dish Name",
+    "tag": "⭐ แนะนำสำหรับมื้อนี้",
     "time": "15 นาที",
-    "difficulty": "ง่ายมาก",
-    "calories": "~350 kcal",
-    "category": "stir-fry",
+    "difficulty": "ง่าย",
+    "calories": "~320 kcal",
+    "servings": "${servings}",
     "ingredients": [
-      { "name": "${ingredientNames[0] || 'วัตถุดิบหลัก'}", "amount": "1 ส่วน", "location": "ในตู้เย็น" },
-      { "name": "เครื่องปรุงรส (ซีอิ๊วขาว น้ำมันหอย)", "amount": "ตามชอบ", "location": "เครื่องปรุงในครัว" }
+      { "name": "ชื่อวัตถุดิบ", "amount": "ปริมาณที่แนะนำ", "inFridge": true }
     ],
     "steps": [
-      "ตั้งกระทะใส่น้ำมัน...",
-      "ใส่วัตถุดิบลงไปผัดจนสุกหอม...",
-      "ปรุงรสตามชอบ เสิร์ฟร้อนๆ"
+      "ขั้นตอนที่ 1 ...",
+      "ขั้นตอนที่ 2 ...",
+      "ขั้นตอนที่ 3 ..."
     ]
   }
 ]`;
 
-    let recipesData: any[] = [];
+    // 3. เรียก Gemini AI + ตรวจสอบผลลัพธ์หลังสร้าง (หากพบของหมดอายุ ให้ปฏิเสธและลองสร้างใหม่อัตโนมัติ 1 ครั้ง)
+    let attempt = await callGeminiForRecipes(apiKey, buildPrompt(), 0.72);
+    let validation = attempt.candidates
+      ? validateGeneratedRecipes(attempt.candidates, classified.usable, allExpired, fridgeName, servings)
+      : { validRecipes: [], rejectedCount: 0, rejectedReasons: [] };
 
-    if (apiKey) {
-      const modelsToTry = [
-        'gemini-3.5-flash-lite',
-        'gemini-3.5-flash',
-        'gemini-3.7-flash',
-      ];
-
-      for (const model of modelsToTry) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 9000);
-
-          const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': apiKey,
-              },
-              signal: controller.signal,
-              body: JSON.stringify({
-                contents: [
-                  {
-                    parts: [{ text: systemPrompt }],
-                  },
-                ],
-                generationConfig: {
-                  temperature: 0.6,
-                  maxOutputTokens: 1200,
-                },
-              }),
-            }
-          );
-          clearTimeout(timeoutId);
-
-          if (!res.ok) {
-            continue;
-          }
-
-          const raw = await res.json();
-          const text = raw.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-
-          if (text) {
-            let clean = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const startIdx = clean.indexOf('[');
-            const endIdx = clean.lastIndexOf(']');
-            if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-              clean = clean.substring(startIdx, endIdx + 1);
-            }
-
-            const parsed = JSON.parse(clean);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              recipesData = parsed.map((item, idx) => ({
-                id: item.id || `recipe-${idx + 1}`,
-                name: String(item.name || 'เมนูชวนอร่อย').trim(),
-                nameEn: String(item.nameEn || item.name || '').trim(),
-                tag: String(item.tag || (idx === 0 ? '⭐ แนะนำเคลียร์ของด่วน' : 'ทำง่าย รสเด็ด')).trim(),
-                time: String(item.time || '15-20 นาที').trim(),
-                difficulty: String(item.difficulty || 'ง่าย').trim(),
-                calories: String(item.calories || '~300 kcal').trim(),
-                imageUrl: getCategoryPhoto(item.category, item.name),
-                ingredients: Array.isArray(item.ingredients)
-                  ? item.ingredients.map((ing: any) => ({
-                      name: String(ing.name || '').trim(),
-                      amount: String(ing.amount || 'ตามชอบ').trim(),
-                      location: String(ing.location || 'ในตู้เย็น').trim(),
-                    }))
-                  : [
-                      {
-                        name: ingredientNames[0] || 'วัตถุดิบ',
-                        amount: '1 ส่วน',
-                        location: 'ในตู้เย็น',
-                      },
-                    ],
-                steps: Array.isArray(item.steps)
-                  ? item.steps.map((st: any) => String(st).trim()).filter(Boolean)
-                  : ['ปรุงสุกด้วยความร้อนตามชอบ เสิร์ฟพร้อมทาน'],
-              }));
-              break;
-            }
-          }
-        } catch (e) {
-          console.error(`Gemini model ${model} failed for recipes:`, e);
-        }
-      }
+    if (validation.validRecipes.length === 0 && validation.rejectedCount > 0) {
+      const retryNote = `\nคำเตือนสำคัญมาก: รอบก่อนหน้าถูกปฏิเสธเพราะ (${validation.rejectedReasons.join(
+        '; '
+      )}) จงสร้างเมนูใหม่โดยใช้เฉพาะวัตถุดิบที่ยังไม่หมดอายุในรายการด้านบนเท่านั้น!`;
+      attempt = await callGeminiForRecipes(apiKey, buildPrompt(retryNote), 0.5);
+      validation = attempt.candidates
+        ? validateGeneratedRecipes(attempt.candidates, classified.usable, allExpired, fridgeName, servings)
+        : { validRecipes: [], rejectedCount: 0, rejectedReasons: [] };
     }
 
-    // Fallback if AI didn't return valid recipes
-    if (recipesData.length === 0) {
-      const primary = ingredientNames[0] || 'ของสด';
-      const secondary = ingredientNames[1] || 'ผักในตู้';
-      recipesData = [
+    if (validation.validRecipes.length === 0) {
+      return NextResponse.json(
         {
-          id: 'recipe-1',
-          name: `ผัด${primary}กระเทียมพริกไทยหอมกรุ่น`,
-          nameEn: `Stir-fried ${primary} with Garlic & Pepper`,
-          tag: '⭐ แนะนำเคลียร์ของด่วน',
-          time: '15 นาที',
-          difficulty: 'ง่ายมาก',
-          calories: '~280 kcal',
-          imageUrl: getCategoryPhoto('stir-fry', primary),
-          ingredients: [
-            { name: primary, amount: '1-2 ส่วน', location: 'ตู้เย็นหลัก' },
-            { name: secondary, amount: 'ตามชอบ', location: 'ตู้เย็น' },
-            { name: 'กระเทียมสับและพริกไทยป่น', amount: '1 ช้อนโต๊ะ', location: 'เครื่องปรุง' },
-          ],
-          steps: [
-            `หั่น ${primary} เป็นชิ้นพอดีคำ ล้างทำความสะอาด`,
-            'เจียวกระเทียมสับในน้ำมันไฟกลางจนเหลืองหอมกรุ่น',
-            `ใส่ ${primary} ลงไปผัด ปรุงรสด้วยซีอิ๊วขาวและซอสหอยนางรม`,
-            'โรยพริกไทยป่น คลุกเคล้าให้เข้ากัน เสิร์ฟร้อนๆ ทันที',
-          ],
+          success: false,
+          error:
+            validation.rejectedReasons.length > 0
+              ? `ไม่สามารถสร้างเมนูที่ปลอดภัยได้ (${validation.rejectedReasons[0]}) กรุณาลองกดสุ่มใหม่อีกครั้ง`
+              : `ไม่สามารถเชื่อมต่อ AI เพื่อคิดสูตรอาหารได้ในขณะนี้ (${attempt.lastError || 'timeout'}) กรุณาลองกดใหม่อีกครั้ง`,
         },
-        {
-          id: 'recipe-2',
-          name: `แกงจืด${primary}เต้าหู้ไข่ซดคล่องคอ`,
-          nameEn: `Clear Soup with ${primary} & Tofu`,
-          tag: 'ซดร้อนๆ สบายท้อง',
-          time: '20 นาที',
-          difficulty: 'ง่าย',
-          calories: '~190 kcal',
-          imageUrl: getCategoryPhoto('soup', primary),
-          ingredients: [
-            { name: primary, amount: '1 ส่วน', location: 'ตู้เย็นหลัก' },
-            { name: 'เต้าหู้ไข่หรือผักกาดขาว', amount: '1 หลอด', location: 'ตู้เย็น' },
-            { name: 'ซุปก้อนหรือน้ำซุปกระดูก', amount: '1 ถ้วย', location: 'เครื่องปรุง' },
-          ],
-          steps: [
-            'ต้มน้ำให้เดือด ใส่ซุปก้อนคนให้ละลาย',
-            `ใส่ ${primary} และผักลงไปเคี่ยวด้วยไฟกลาง 5-7 นาที`,
-            'ปรุงรสด้วยซีอิ๊วขาวเบาๆ ปิดท้ายด้วยเต้าหู้ไข่ ยกลงเสิร์ฟร้อนๆ',
-          ],
-        },
-      ];
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      recipes: recipesData,
-      source: apiKey ? 'gemini-3.5' : 'curated',
+      recipes: validation.validRecipes,
+      source: attempt.modelUsed,
+      excludedExpiredCount: allExpired.length,
+      focusIngredients: weightedFocus.map((i) => i.name),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Recipe generation error:', error);
     return NextResponse.json(
-      { error: error.message || 'เกิดข้อผิดพลาดในการคิดสูตรอาหาร' },
+      {
+        success: false,
+        error:
+          error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการคิดสูตรอาหาร',
+      },
       { status: 500 }
     );
   }
 }
-

@@ -27,14 +27,18 @@ export function ShareHouseholdModal({
     : `#TY-${rawCode.slice(0, 6).toUpperCase()}`;
 
   function handleCopy() {
-    navigator.clipboard.writeText(rawCode);
+    navigator.clipboard.writeText(displayCode);
     setCopied(true);
     toast.success(`คัดลอกรหัสบ้าน ${displayCode} แล้ว!`);
     setTimeout(() => setCopied(false), 2000);
   }
 
   async function handleShare() {
-    const shareText = `มาช่วยกันดูแลตู้เย็นและลดขยะอาหารที่บ้าน "${currentH.name}" บน CheckTuYen กัน!\n\nรหัสเข้าร่วมบ้าน: ${rawCode}\nเปิดใช้งานได้ที่: https://checktuyen.app/household`;
+    const appUrl =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/household`
+        : '/household';
+    const shareText = `มาช่วยกันดูแลตู้เย็นและลดขยะอาหารที่บ้าน "${currentH.name}" บน CheckTuYen กัน!\n\nรหัสเข้าร่วมบ้าน: ${displayCode}\nเข้าร่วมได้ที่: ${appUrl}`;
 
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
@@ -76,7 +80,7 @@ export function ShareHouseholdModal({
           รหัสแชร์ครัวเรือน
         </h3>
         <p className="text-xs text-muted mt-0.5">
-          ตู้เย็น บ้านคุณ{currentH.name}
+          {currentH.name}
         </p>
 
         {/* Share Code Card */}

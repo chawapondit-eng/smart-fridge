@@ -3,9 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useHousehold } from '@/contexts/HouseholdContext';
-import { X, Edit2, Upload, Calendar, Trash2, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { X, Edit2, Upload, Calendar } from 'lucide-react';
 import type { Item, ItemBatch } from '@/types/database';
 import toast from 'react-hot-toast';
+import {
+  normalizeDateString,
+  addDaysFromBangkokToday,
+  getDaysUntilExpiry,
+  formatThaiDate,
+  formatExpiryLabel,
+} from '@/lib/date';
 
 interface ItemWithBatches extends Item {
   item_batches?: ItemBatch[];
@@ -80,7 +87,7 @@ export function EditProductModal({
       setNotes(item.notes || '');
 
       const earliestBatch = item.item_batches?.find((b) => b.expiry_date);
-      setExpiryDate(earliestBatch?.expiry_date || '');
+      setExpiryDate(normalizeDateString(earliestBatch?.expiry_date) || '');
     }
   }, [item, isOpen]);
 
@@ -123,7 +130,7 @@ export function EditProductModal({
     setSubmitting(true);
     try {
       // 1. อัปเดตข้อมูลสินค้าใน items
-      let updatePayload: Record<string, unknown> = {
+      const updatePayload: Record<string, unknown> = {
         name: name.trim(),
         quantity: numQty,
         unit: unit.trim() || 'ชิ้น',
@@ -147,36 +154,35 @@ export function EditProductModal({
 
       if (updateError) throw updateError;
 
-      // 2. จัดการวันหมดอายุใน item_batches
-      if (expiryDate) {
-        const existingBatch = item!.item_batches?.[0];
-        if (existingBatch) {
-          await supabase
-            .from('item_batches')
-            .update({
-              quantity: numQty,
-              expiry_date: expiryDate,
-              notes: notes.trim() || null,
-            })
-            .eq('id', existingBatch.id);
-        } else {
-          const batchId =
-            typeof crypto !== 'undefined' && crypto.randomUUID
-              ? crypto.randomUUID()
-              : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-                  const r = (Math.random() * 16) | 0;
-                  const v = c === 'x' ? r : (r & 0x3) | 0x8;
-                  return v.toString(16);
-                });
-
-          await supabase.from('item_batches').insert({
-            id: batchId,
-            item_id: item!.id,
+      // 2. จัดการวันหมดอายุใน item_batches (ใช้ YYYY-MM-DD ตรงตามปฏิทิน ไม่เลื่อนวัน)
+      const cleanExpiry = normalizeDateString(expiryDate);
+      const existingBatch = item!.item_batches?.[0];
+      if (existingBatch) {
+        await supabase
+          .from('item_batches')
+          .update({
             quantity: numQty,
-            expiry_date: expiryDate,
+            expiry_date: cleanExpiry,
             notes: notes.trim() || null,
-          });
-        }
+          })
+          .eq('id', existingBatch.id);
+      } else if (cleanExpiry) {
+        const batchId =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+                const r = (Math.random() * 16) | 0;
+                const v = c === 'x' ? r : (r & 0x3) | 0x8;
+                return v.toString(16);
+              });
+
+        await supabase.from('item_batches').insert({
+          id: batchId,
+          item_id: item!.id,
+          quantity: numQty,
+          expiry_date: cleanExpiry,
+          notes: notes.trim() || null,
+        });
       }
 
       // 3. บันทึก Activity Log
@@ -352,18 +358,51 @@ export function EditProductModal({
           </div>
 
           {/* Expiry Date */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
-              วันหมดอายุ
-            </label>
-            <div className="relative">
-              <input
-                type="date"
-                value={expiryDate}
-                onChange={(e) => setExpiryDate(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
-              />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-primary-600" />
+                <span>วันหมดอายุ (เวลาไทย)</span>
+              </label>
+              {expiryDate && (
+                <button
+                  type="button"
+                  onClick={() => setExpiryDate('')}
+                  className="text-[11px] text-muted hover:text-rose-500 font-medium"
+                >
+                  ล้างวันที่
+                </button>
+              )}
             </div>
+            <input
+              type="date"
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(normalizeDateString(e.target.value) || '')}
+              className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+            />
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                { label: 'วันนี้', days: 0 },
+                { label: '+3 วัน', days: 3 },
+                { label: '+7 วัน', days: 7 },
+                { label: '+14 วัน', days: 14 },
+              ].map((p) => (
+                <button
+                  key={p.days}
+                  type="button"
+                  onClick={() => setExpiryDate(addDaysFromBangkokToday(p.days))}
+                  className="px-2.5 py-1 rounded-lg border border-border bg-card hover:border-primary-500 hover:text-primary-600 text-[11px] font-semibold text-muted transition"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {expiryDate && (
+              <p className="text-xs text-muted">
+                ตรงกับวันที่ <strong className="text-foreground">{formatThaiDate(expiryDate)}</strong> •{' '}
+                <strong className="text-primary-600">{formatExpiryLabel(getDaysUntilExpiry(expiryDate))}</strong>
+              </p>
+            )}
           </div>
 
           {/* Notes */}

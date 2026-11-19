@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { FullPageAnimation } from '@/components/ui/FullPageAnimation';
 
 export default function LoginPage() {
@@ -41,6 +41,10 @@ export default function LoginPage() {
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
           toast.error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+        } else if (error.message.includes('Email not confirmed')) {
+          toast.error('กรุณายืนยันอีเมลในกล่องจดหมายของคุณก่อนเข้าสู่ระบบ');
+        } else if (error.message.toLowerCase().includes('fetch')) {
+          toast.error('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ตหรือลองใหม่อีกครั้ง');
         } else {
           toast.error(error.message || 'เข้าสู่ระบบไม่สำเร็จ');
         }
@@ -51,14 +55,34 @@ export default function LoginPage() {
       if (data?.user) {
         setShowAnimation(true);
         setTimeout(() => {
-          router.push('/');
+          router.replace('/');
           router.refresh();
-        }, 1200);
+        }, 1100);
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
+      const raw = err instanceof Error ? err.message : '';
+      const message = raw.toLowerCase().includes('fetch')
+        ? 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ฐานข้อมูลได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง'
+        : raw || 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
       toast.error(message);
       setLoading(false);
+    }
+  }
+
+  async function handleForgotPassword() {
+    const email = identifier.trim();
+    if (!email || !email.includes('@')) {
+      toast('กรุณากรอกอีเมลของคุณในช่องด้านบนก่อน แล้วกด "ลืมรหัสผ่าน?" อีกครั้ง', { icon: 'ℹ️' });
+      return;
+    }
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined,
+      });
+      if (error) throw error;
+      toast.success(`ส่งลิงก์รีเซ็ตรหัสผ่านไปยัง ${email} เรียบร้อยแล้ว`);
+    } catch {
+      toast.error('ไม่สามารถส่งอีเมลรีเซ็ตรหัสผ่านได้ในขณะนี้ กรุณาลองใหม่');
     }
   }
 
@@ -77,25 +101,13 @@ export default function LoginPage() {
 
       {/* Top Header */}
       <header className="w-full pt-safe bg-surface/85 backdrop-blur-xl border-b border-border/60 shadow-[0_1px_8px_rgba(120,113,108,0.04)] sticky top-0 z-30">
-        <div className="max-w-md mx-auto h-16 px-4 flex items-center justify-between">
-          <button
-            onClick={() => router.back()}
-            type="button"
-            className="w-10 h-10 -ml-1 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-container-low transition"
-            aria-label="ย้อนกลับ"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-
+        <div className="max-w-md mx-auto h-16 px-4 flex items-center justify-center">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-primary-600 text-[22px]">kitchen</span>
             <h1 className="font-heading font-bold text-base text-on-surface">
               CheckTuYen
             </h1>
           </div>
-
-          {/* Clean spacer */}
-          <div className="w-10" />
         </div>
       </header>
 
@@ -121,8 +133,8 @@ export default function LoginPage() {
 
           {/* Title & Tagline */}
           <div className="flex items-center gap-2">
-            <h2 className="font-heading text-xl sm:text-2xl font-extrabold text-on-surface tracking-tight">
-              เข้าสู่ระบบเพื่อเริ่มต้นการใช้งาน CheckTuYen
+            <h2 className="font-heading text-xl sm:text-2xl font-bold text-on-surface">
+              เข้าสู่ระบบ CheckTuYen
             </h2>
           </div>
 
@@ -197,7 +209,7 @@ export default function LoginPage() {
             </label>
             <button
               type="button"
-              onClick={() => toast('กรุณาติดต่อผู้ดูแลบ้านหรือลงทะเบียนใหม่', { icon: 'ℹ️' })}
+              onClick={handleForgotPassword}
               className="text-xs font-bold text-primary-600 hover:underline"
             >
               ลืมรหัสผ่าน?

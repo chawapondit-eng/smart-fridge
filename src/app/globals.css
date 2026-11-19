@@ -63,38 +63,38 @@
   --warning-500: #f59e0b;
   --warning-600: #d97706;
 
-  /* Surfaces & Backgrounds */
-  --background: #fffcf9;
-  --foreground: #1c1917;
-  --surface: #fffcf9;
-  --on-surface: #1c1917;
+  /* Surfaces & Backgrounds — Warm White per Reference UI.pdf */
+  --background: #faf9f6;
+  --foreground: #252525;
+  --surface: #ffffff;
+  --on-surface: #252525;
   --surface-container-lowest: #ffffff;
-  --surface-container-low: #fef7ee;
-  --surface-container: #fdedd7;
-  --surface-container-high: #fce2c2;
-  --surface-container-highest: #fbd6a9;
-  --on-surface-variant: #78716c;
+  --surface-container-low: #fbf9f5;
+  --surface-container: #f6f3ee;
+  --surface-container-high: #efece5;
+  --surface-container-highest: #e7e3dc;
+  --on-surface-variant: #777777;
 
   --card: #ffffff;
-  --card-hover: #fffaf5;
-  --border: #f0e8de;
-  --border-light: #fbf5ef;
-  --muted: #78716c;
-  --muted-light: #a8a29e;
-  --outline: #a8a29e;
-  --outline-variant: #e7e0d6;
+  --card-hover: #fff9f5;
+  --border: #eeeeee;
+  --border-light: #f5f5f5;
+  --muted: #777777;
+  --muted-light: #a0988f;
+  --outline: #a0988f;
+  --outline-variant: #eeeeee;
 
   --input-bg: #ffffff;
-  --input-border: #e7e0d6;
+  --input-border: #eeeeee;
   --input-focus: var(--primary-500);
 
-  --shadow-xs: 0 1px 2px 0 rgb(120 113 108 / 0.05);
-  --shadow-sm: 0 1px 3px 0 rgb(120 113 108 / 0.08), 0 1px 2px -1px rgb(120 113 108 / 0.04);
-  --shadow-md: 0 4px 6px -1px rgb(120 113 108 / 0.08), 0 2px 4px -2px rgb(120 113 108 / 0.04);
-  --shadow-lg: 0 10px 15px -3px rgb(120 113 108 / 0.08), 0 4px 6px -4px rgb(120 113 108 / 0.04);
+  --shadow-xs: 0 1px 2px 0 rgb(37 37 37 / 0.03);
+  --shadow-sm: 0 2px 4px 0 rgb(37 37 37 / 0.04), 0 1px 2px -1px rgb(37 37 37 / 0.02);
+  --shadow-md: 0 6px 12px -2px rgb(37 37 37 / 0.06), 0 3px 6px -3px rgb(37 37 37 / 0.03);
+  --shadow-lg: 0 12px 20px -4px rgb(37 37 37 / 0.08), 0 4px 8px -4px rgb(37 37 37 / 0.03);
 
   --sidebar-bg: #ffffff;
-  --sidebar-border: #f0e8de;
+  --sidebar-border: #eeeeee;
 
   /* Status Badges */
   --status-fresh-bg: #dcfce7;

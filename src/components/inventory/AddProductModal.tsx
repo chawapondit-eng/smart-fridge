@@ -1,12 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useHousehold } from '@/contexts/HouseholdContext';
 import toast from 'react-hot-toast';
-import { X, Plus, Sparkles, Upload, Receipt } from 'lucide-react';
+import { X, Plus, Sparkles, Receipt, Refrigerator, Calendar, Bell, Camera } from 'lucide-react';
 import { getAutoEmoji } from './EditProductModal';
+import {
+  addDaysFromBangkokToday,
+  getDaysUntilExpiry,
+  formatThaiDate,
+  formatExpiryLabel,
+  getReminderBeforeDays,
+  setReminderBeforeDays,
+  normalizeDateString,
+} from '@/lib/date';
 
 interface AddProductModalProps {
   isOpen: boolean;
@@ -38,9 +47,67 @@ export function AddProductModal({
   const [quantity, setQuantity] = useState('1');
   const [unit, setUnit] = useState('ชิ้น');
   const [expiryDate, setExpiryDate] = useState('');
+  const [daysUntilInput, setDaysUntilInput] = useState('');
+  const [reminderBeforeDays, setReminderBeforeDaysState] = useState<number>(3);
   const [imageUrl, setImageUrl] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // ซิงค์ตู้เย็นปลายทางและค่าแจ้งเตือนล่วงหน้าทุกครั้งที่เปิด Modal
+  useEffect(() => {
+    if (isOpen) {
+      if (defaultFridgeId && fridges.some((f) => f.id === defaultFridgeId)) {
+        setFridgeId(defaultFridgeId);
+      } else if (!fridgeId || !fridges.some((f) => f.id === fridgeId)) {
+        setFridgeId(fridges[0]?.id || '');
+      }
+      setReminderBeforeDaysState(getReminderBeforeDays(currentHousehold?.id));
+    }
+  }, [isOpen, defaultFridgeId, fridges, fridgeId, currentHousehold?.id]);
+
+  // เมื่อผู้ใช้กรอก "หมดอายุในอีก X วัน" -> คำนวณ expiry_date = todayBangkok + X วัน
+  function handleDaysUntilChange(val: string) {
+    setDaysUntilInput(val);
+    if (val.trim() === '') {
+      return;
+    }
+    const num = parseInt(val, 10);
+    if (!isNaN(num) && num >= 0 && num <= 3650) {
+      setExpiryDate(addDaysFromBangkokToday(num));
+    }
+  }
+
+  // เมื่อผู้ใช้เลือกวันที่จาก Date Picker -> บันทึกตรงตามที่เลือก ห้ามเลื่อนวันเอง
+  function handleDatePickerChange(val: string) {
+    const clean = normalizeDateString(val) || '';
+    setExpiryDate(clean);
+    if (clean) {
+      const diff = getDaysUntilExpiry(clean);
+      setDaysUntilInput(diff !== null && diff >= 0 ? String(diff) : '');
+    } else {
+      setDaysUntilInput('');
+    }
+  }
+
+  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('ขนาดรูปภาพต้องไม่เกิน 2MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      if (result) {
+        setImageUrl(result);
+        toast.success('เลือกรูปวัตถุดิบเรียบร้อย');
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  const calculatedDaysLeft = getDaysUntilExpiry(expiryDate);
 
   const targetFridge = fridges.find((f) => f.id === (fridgeId || defaultFridgeId || fridges[0]?.id));
 
@@ -66,12 +133,16 @@ export function AddProductModal({
     }
 
     const targetFridgeId = fridgeId || fridges[0]?.id;
-    if (!targetFridgeId) {
-      toast.error('กรุณาสร้างตู้เย็นก่อนเพิ่มสินค้า');
+    if (!targetFridgeId || !fridges.some((f) => f.id === targetFridgeId)) {
+      toast.error('กรุณาเลือกหรือสร้างตู้เย็นก่อนเพิ่มสินค้า');
       return;
     }
 
-    const numQty = parseFloat(quantity) || 1;
+    const numQty = parseFloat(quantity);
+    if (isNaN(numQty) || numQty <= 0) {
+      toast.error('กรุณากรอกจำนวนสินค้าที่มากกว่า 0');
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -86,8 +157,8 @@ export function AddProductModal({
 
       const finalEmoji = imageUrl || getAutoEmoji(name.trim());
 
-      // 1. เพิ่มสินค้าลงใน items
-      let itemPayload: Record<string, unknown> = {
+      // 1. เพิ่มสินค้าลงใน items พร้อม added_by, fridge_id และ household_id ที่ถูกต้อง
+      const itemPayload: Record<string, unknown> = {
         id: itemId,
         fridge_id: targetFridgeId,
         household_id: currentHousehold.id,
@@ -97,6 +168,7 @@ export function AddProductModal({
         image_url: finalEmoji,
         notes: notes.trim() || null,
         status: numQty <= 0 ? 'out_of_stock' : numQty <= 1 ? 'low_stock' : 'in_stock',
+        added_by: authUser.id,
       };
 
       let { data: itemData, error: itemError } = await supabase
@@ -105,12 +177,13 @@ export function AddProductModal({
         .select()
         .single();
 
-      // Fallback ถ้าคอลัมน์ status หรือ image_url ไม่มีในตาราง
+      // Fallback ถ้าคอลัมน์เสริมบางตัวไม่มีในตาราง
       if (
         itemError &&
         (itemError.message?.includes('status') ||
           itemError.message?.includes('image_url') ||
-          itemError.message?.includes('notes'))
+          itemError.message?.includes('notes') ||
+          itemError.message?.includes('added_by'))
       ) {
         const retryPayload: Record<string, unknown> = {
           id: itemId,
@@ -129,7 +202,11 @@ export function AddProductModal({
 
       const finalItemId = itemData?.id || itemId;
 
-      // 2. ถ้ามีวันหมดอายุ สร้าง Batch ลง item_batches
+      // บันทึกการตั้งค่าแจ้งเตือนล่วงหน้า (แยกออกจาก expiry_date ไม่เปลี่ยนแปลงวันหมดอายุจริง)
+      setReminderBeforeDays(reminderBeforeDays, currentHousehold.id);
+      const cleanExpiryDate = normalizeDateString(expiryDate);
+
+      // 2. ถ้ามีวันหมดอายุ สร้าง Batch ลง item_batches (ใช้ YYYY-MM-DD ตรงตามปฏิทิน)
       if (finalItemId) {
         try {
           const batchId =
@@ -145,7 +222,7 @@ export function AddProductModal({
             id: batchId,
             item_id: finalItemId,
             quantity: numQty,
-            expiry_date: expiryDate ? expiryDate : null,
+            expiry_date: cleanExpiryDate,
             added_by: authUser.id,
             notes: notes.trim() || null,
           });
@@ -156,7 +233,7 @@ export function AddProductModal({
               id: batchId,
               item_id: finalItemId,
               quantity: numQty,
-              expiry_date: expiryDate ? expiryDate : null,
+              expiry_date: cleanExpiryDate,
               notes: notes.trim() || null,
             });
           }
@@ -178,7 +255,8 @@ export function AddProductModal({
               quantity: numQty,
               amount: numQty,
               unit: unit.trim() || 'ชิ้น',
-              expiry_date: expiryDate || null,
+              expiry_date: cleanExpiryDate,
+              reminder_before_days: reminderBeforeDays,
             },
           });
         } catch {
@@ -191,6 +269,8 @@ export function AddProductModal({
       setName('');
       setQuantity('1');
       setExpiryDate('');
+      setDaysUntilInput('');
+      setImageUrl('');
       setNotes('');
       onClose();
       if (onSuccess) onSuccess();
@@ -227,11 +307,11 @@ export function AddProductModal({
             <Plus className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-lg font-bold tracking-tight text-foreground">
-              เพิ่มสินค้าลง: {targetFridge ? targetFridge.name : 'ตู้เย็น'}
+            <h3 className="text-lg font-bold text-foreground">
+              เพิ่มวัตถุดิบลง: {targetFridge ? `${targetFridge.icon || '❄️'} ${targetFridge.name}` : 'ตู้เย็น'}
             </h3>
             <p className="text-xs text-muted">
-              กรอกข้อมูลของสดหรืออาหารเพื่อติดตามวันหมดอายุ
+              บ้าน: {currentHousehold?.name || 'ครัวเรือนของคุณ'} • กรอกข้อมูลของสดเพื่อติดตามวันหมดอายุ
             </p>
           </div>
         </div>
@@ -343,17 +423,123 @@ export function AddProductModal({
             </div>
           </div>
 
-          {/* Expiry Date */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
-              วันหมดอายุ (ไม่บังคับ)
-            </label>
-            <input
-              type="date"
-              value={expiryDate}
-              onChange={(e) => setExpiryDate(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
-            />
+          {/* Photo Upload (Optional) */}
+          <div className="flex items-center gap-3 p-3 rounded-xl border border-border bg-surface-container-low/60">
+            <div className="w-12 h-12 rounded-xl bg-card border border-border flex items-center justify-center overflow-hidden shrink-0 text-2xl">
+              {imageUrl?.startsWith('data:image') || imageUrl?.startsWith('http') ? (
+                <img src={imageUrl} alt={name || 'วัตถุดิบ'} className="w-full h-full object-cover" />
+              ) : (
+                <span>{imageUrl || getAutoEmoji(name || 'สินค้า')}</span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card hover:bg-surface-container border border-border text-xs font-semibold text-foreground cursor-pointer transition">
+                <Camera className="w-3.5 h-3.5 text-primary-600" />
+                <span>ถ่ายรูป / เลือกรูปวัตถุดิบ</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
+              </label>
+              <p className="text-[11px] text-muted mt-1">ไม่บังคับ • ระบบเลือกไอคอนให้อัตโนมัติหากไม่อัปโหลด</p>
+            </div>
+          </div>
+
+          {/* Expiry Date & Days Until Expiry (Asia/Bangkok Calendar Date) */}
+          <div className="p-3.5 rounded-2xl border border-border bg-surface-container-low/50 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-primary-600" />
+                <span>วันหมดอายุ (เวลาไทย)</span>
+              </label>
+              {expiryDate && (
+                <button
+                  type="button"
+                  onClick={() => handleDatePickerChange('')}
+                  className="text-[11px] text-muted hover:text-rose-500 font-medium"
+                >
+                  ล้างวันที่
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <span className="block text-[11px] text-muted mb-1">เลือกวันที่หมดอายุจริง</span>
+                <input
+                  type="date"
+                  value={expiryDate}
+                  onChange={(e) => handleDatePickerChange(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+                />
+              </div>
+              <div>
+                <span className="block text-[11px] text-muted mb-1">หรือกรอก &quot;หมดอายุในอีก (วัน)&quot;</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="3650"
+                  value={daysUntilInput}
+                  onChange={(e) => handleDaysUntilChange(e.target.value)}
+                  placeholder="เช่น 3, 7, 14"
+                  className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+                />
+              </div>
+            </div>
+
+            {/* Quick Days Presets */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                { label: 'วันนี้', days: 0 },
+                { label: '+1 วัน', days: 1 },
+                { label: '+3 วัน', days: 3 },
+                { label: '+7 วัน', days: 7 },
+                { label: '+14 วัน', days: 14 },
+              ].map((preset) => (
+                <button
+                  key={preset.days}
+                  type="button"
+                  onClick={() => handleDaysUntilChange(String(preset.days))}
+                  className="px-2.5 py-1 rounded-lg border border-border bg-card hover:border-primary-500 hover:text-primary-600 text-[11px] font-semibold text-muted transition"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Live Calendar Confirmation */}
+            {expiryDate && (
+              <div className="text-xs px-3 py-2 rounded-xl bg-card border border-border/80 flex items-center justify-between gap-2">
+                <span className="text-muted">วันหมดอายุที่บันทึก:</span>
+                <span className="font-bold text-foreground">
+                  {formatThaiDate(expiryDate)} ({formatExpiryLabel(calculatedDaysLeft)})
+                </span>
+              </div>
+            )}
+
+            {/* Separate Reminder Setting (never alters expiry_date) */}
+            <div className="pt-2 border-t border-border/60 flex items-center justify-between gap-2">
+              <label className="text-[11px] text-muted flex items-center gap-1.5">
+                <Bell className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>แจ้งเตือนล่วงหน้าก่อนหมดอายุ</span>
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  max="30"
+                  value={reminderBeforeDays}
+                  onChange={(e) =>
+                    setReminderBeforeDaysState(Math.max(0, Math.min(30, parseInt(e.target.value, 10) || 0)))
+                  }
+                  className="w-14 px-2 py-1 rounded-lg border border-border bg-background text-xs font-bold text-center text-foreground outline-none focus:border-primary-500"
+                />
+                <span className="text-[11px] text-muted">วัน</span>
+              </div>
+            </div>
           </div>
 
           {/* Notes */}
@@ -369,6 +555,19 @@ export function AddProductModal({
               className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
             />
           </div>
+
+          {/* Target Fridge Confirmation Banner */}
+          {targetFridge && (
+            <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-primary-500/10 border border-primary-500/25 text-xs">
+              <Refrigerator className="w-4 h-4 text-primary-600 shrink-0" />
+              <span className="text-foreground">
+                จะบันทึกลงในตู้เย็น:{' '}
+                <strong className="text-primary-600 dark:text-primary-400">
+                  {targetFridge.icon || '❄️'} {targetFridge.name}
+                </strong>
+              </span>
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
             <button

@@ -75,7 +75,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
             display_name: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'สมาชิก',
           };
           await supabase.from('users').upsert(autoProfile);
-          profile = autoProfile as any;
+          profile = autoProfile as DbUser;
         }
 
         if (profile) {
@@ -106,7 +106,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
             display_name: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'สมาชิก',
           };
           await supabase.from('users').upsert(autoProfile);
-          profile = autoProfile as any;
+          profile = autoProfile as DbUser;
         }
 
         if (profile) {
@@ -492,15 +492,21 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         console.warn('Invitations lookup warning:', invErr);
       }
 
-      // 3. Fallback: ค้นหาจากรหัสครัวเรือนโดยตรง (Direct Household Code เช่น HH-XXXXXX หรือ UUID)
+      // 3. Fallback: ค้นหาจากรหัสครัวเรือนโดยตรง (รองรับ #TY-XXXXXX, TY-XXXXXX, HH-XXXXXX, หรือ UUID)
       if (!targetHouseholdId) {
         try {
-          const cleanCode = code.replace(/^HH-/, '').toLowerCase();
+          const cleanCode = code
+            .replace(/^#?TY-/, '')
+            .replace(/^HH-/, '')
+            .replace(/^HOME-/, '')
+            .replace(/-/g, '')
+            .toLowerCase();
           const { data: hhList } = await supabase.from('households').select('id, name');
           const matched = (hhList || []).find(
             (h) =>
               h.id.toLowerCase() === code.toLowerCase() ||
-              h.id.replace(/-/g, '').toLowerCase().startsWith(cleanCode) ||
+              (cleanCode.length >= 6 &&
+                h.id.replace(/-/g, '').toLowerCase().startsWith(cleanCode)) ||
               h.name.trim().toLowerCase() === code.toLowerCase()
           );
           if (matched) {
@@ -594,7 +600,6 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
             });
 
       // 2. ลอง insert พร้อม icon ก่อน
-      let fError = null;
       let res = await supabase.from('fridges').insert({
         id: fridgeId,
         household_id: currentHousehold.id,

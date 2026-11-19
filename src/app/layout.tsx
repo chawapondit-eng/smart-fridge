@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   description: "ระบบจัดการตู้เย็นและวัตถุดิบสำหรับครอบครัว ลดขยะอาหาร สแกนใบเสร็จด้วย AI และสุ่มเมนูอาหาร",
 };
 
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({
   children,
 }: {
