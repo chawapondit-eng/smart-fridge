@@ -15,8 +15,6 @@ import {
   KeyRound,
   Bell,
   Share2,
-  Copy,
-  Check,
   Users,
 } from 'lucide-react';
 import { FullPageAnimation } from '@/components/ui/FullPageAnimation';
@@ -36,18 +34,6 @@ export function AppTopbar({}: AppTopbarProps) {
   const [expiringCount, setExpiringCount] = useState<number>(0);
   const [showLogoutAnimation, setShowLogoutAnimation] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
-
-  function handleCopyHouseholdCode(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!currentHousehold?.id) return;
-    const rawCode = currentHousehold.id;
-    const code = rawCode.startsWith('#TY-') ? rawCode : `#TY-${rawCode.slice(0, 6).toUpperCase()}`;
-    navigator.clipboard.writeText(code);
-    setCopiedCode(true);
-    toast.success(`คัดลอกรหัสเข้าบ้านแล้ว!`);
-    setTimeout(() => setCopiedCode(false), 2000);
-  }
 
   // ดึงจำนวนของที่ใกล้หมดอายุในครัวเรือนนี้
   useEffect(() => {
@@ -187,47 +173,6 @@ export function AppTopbar({}: AppTopbarProps) {
                   </div>
                 </div>
               </div>
-
-              {/* ปุ่มแชร์รหัสเข้าบ้าน */}
-              <button
-                type="button"
-                onClick={() => setShowShareModal(true)}
-                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-primary-500/30 bg-primary-500/10 hover:bg-primary-500/20 text-primary-700 dark:text-primary-300 text-xs font-semibold transition active:scale-95 shadow-2xs"
-                title="แชร์รหัสเข้าร่วมบ้านให้สมาชิก"
-              >
-                <Share2 className="w-3 h-3 text-primary-600 shrink-0" />
-                <span>แชร์รหัสเข้าบ้าน</span>
-              </button>
-
-              {/* ปุ่มคัดลอกรหัส */}
-              <button
-                type="button"
-                onClick={handleCopyHouseholdCode}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-border bg-surface-container-low hover:bg-surface-container text-muted hover:text-foreground text-xs font-medium transition active:scale-95 shadow-2xs"
-                title="คัดลอกรหัสเข้าบ้าน"
-              >
-                {copiedCode ? (
-                  <>
-                    <Check className="w-3 h-3 text-emerald-600" />
-                    <span className="text-[11px] text-emerald-600 font-bold">คัดลอกแล้ว</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3 h-3" />
-                    <span className="hidden sm:inline text-[11px]">คัดลอกรหัส</span>
-                  </>
-                )}
-              </button>
-
-              {/* ปุ่มจัดการสมาชิก */}
-              <Link
-                href="/household"
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-border bg-surface-container-low hover:bg-surface-container text-foreground text-xs font-semibold transition active:scale-95 shadow-2xs"
-                title="จัดการคนภายในบ้านและสมาชิก"
-              >
-                <Users className="w-3 h-3 text-primary-600 shrink-0" />
-                <span className="hidden xs:inline">จัดการสมาชิก</span>
-              </Link>
             </div>
           )}
         </div>

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useHousehold } from '@/contexts/HouseholdContext';
-import { X, Edit2, Upload, Calendar } from 'lucide-react';
+import { X, Edit2, Upload, Calendar, AlertCircle, Lock } from 'lucide-react';
 import type { Item, ItemBatch } from '@/types/database';
 import toast from 'react-hot-toast';
 import {
@@ -68,7 +68,7 @@ export function EditProductModal({
   onSuccess,
 }: EditProductModalProps) {
   const supabase = createClient();
-  const { currentHousehold, authUser, user } = useHousehold();
+  const { currentHousehold, authUser, user, canEditItems } = useHousehold();
 
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState('1');
@@ -124,6 +124,11 @@ export function EditProductModal({
     const numQty = parseFloat(quantity);
     if (isNaN(numQty) || numQty < 0) {
       toast.error('จำนวนสินค้าไม่ถูกต้อง');
+      return;
+    }
+
+    if (!canEditItems) {
+      toast.error('คุณไม่มีสิทธิ์แก้ไขวัตถุดิบ (สิทธิ์ดูข้อมูลอย่างเดียว กรุณาติดต่อเจ้าของบ้าน)');
       return;
     }
 
@@ -245,6 +250,19 @@ export function EditProductModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Permission Notice if cannot edit */}
+          {!canEditItems && (
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
+              <Lock className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">สิทธิ์การใช้งานจำกัด (ดูข้อมูลได้อย่างเดียว)</p>
+                <p className="text-[11px] text-amber-700/90 dark:text-amber-400/90 mt-0.5">
+                  เจ้าของบ้านกำหนดให้บัญชีของคุณดูข้อมูลได้อย่างเดียว ไม่สามารถบันทึกการแก้ไขข้อมูลสินค้าได้
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Picture / Emoji Preview & Selection */}
           <div className="p-4 rounded-xl border border-border bg-muted/5 space-y-3">
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
@@ -431,10 +449,19 @@ export function EditProductModal({
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !canEditItems}
               className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] shadow-sm shadow-primary-600/25 transition disabled:opacity-50 flex items-center gap-2"
             >
-              {submitting ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
+              {submitting ? (
+                'กำลังบันทึก...'
+              ) : !canEditItems ? (
+                <>
+                  <Lock className="w-4 h-4" />
+                  <span>ไม่มีสิทธิ์แก้ไข</span>
+                </>
+              ) : (
+                'บันทึกการแก้ไข'
+              )}
             </button>
           </div>
         </form>

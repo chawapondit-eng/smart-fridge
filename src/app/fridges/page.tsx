@@ -49,7 +49,7 @@ interface ItemWithBatches extends Item {
 function FridgesContent() {
   const router = useRouter();
   const supabase = createClient();
-  const { currentHousehold, fridges, authUser, user, deleteFridge } = useHousehold();
+  const { currentHousehold, fridges, authUser, user, deleteFridge, canAddItems, canEditItems, canDeleteItems } = useHousehold();
 
   const [items, setItems] = useState<ItemWithBatches[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,6 +166,10 @@ function FridgesContent() {
 
   // ฟังก์ชันใช้ของ (-1)
   async function handleConsume(item: ItemWithBatches) {
+    if (!canEditItems) {
+      toast.error('คุณไม่มีสิทธิ์ลดหรือใช้วัตถุดิบ (สิทธิ์ดูข้อมูลอย่างเดียว กรุณาติดต่อเจ้าของบ้าน)');
+      return;
+    }
     if (!currentHousehold?.id || !authUser?.id) return;
     const currentQty = Number(item.quantity);
     if (currentQty <= 0) {
@@ -212,6 +216,10 @@ function FridgesContent() {
 
   // ลบสินค้า
   async function handleDeleteConfirm() {
+    if (!canDeleteItems) {
+      toast.error('คุณไม่มีสิทธิ์ลบสินค้า (สิทธิ์ดูข้อมูลอย่างเดียว กรุณาติดต่อเจ้าของบ้าน)');
+      return;
+    }
     if (!deletingItem || !currentHousehold?.id || !authUser?.id) return;
     setDeleting(true);
     try {

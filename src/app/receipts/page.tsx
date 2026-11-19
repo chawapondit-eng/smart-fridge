@@ -94,7 +94,7 @@ function ReceiptScannerContent() {
   const searchParams = useSearchParams();
   const initialFridgeParam = searchParams.get('fridgeId') || '';
   const supabase = createClient();
-  const { currentHousehold, fridges, authUser, user } = useHousehold();
+  const { currentHousehold, fridges, authUser, user, canAddItems } = useHousehold();
 
   const [defaultFridgeId, setDefaultFridgeId] = useState<string>(initialFridgeParam);
   const [existingItems, setExistingItems] = useState<ExistingFridgeItem[]>([]);
@@ -519,6 +519,12 @@ function ReceiptScannerContent() {
   // 3. บันทึกสินค้าลงในตู้เย็น (เฉพาะรายการอาหารและเครื่องปรุงที่ได้รับการยืนยัน 100%)
   async function handleConfirmAndSave() {
     if (submitting) return;
+
+    if (!canAddItems) {
+      toast.error('คุณไม่มีสิทธิ์เพิ่มสินค้าเข้าตู้เย็น (สิทธิ์ดูข้อมูลอย่างเดียว กรุณาติดต่อเจ้าของบ้าน)');
+      return;
+    }
+
     if (!currentHousehold?.id || !authUser?.id) {
       toast.error('กรุณาเลือกครัวเรือนก่อนบันทึก');
       return;

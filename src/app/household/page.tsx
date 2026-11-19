@@ -19,12 +19,22 @@ import {
   X,
   AlertCircle,
   ArrowRight,
+  Crown,
+  ShieldCheck,
+  Sliders,
+  Eye,
+  PlusCircle,
+  Edit3,
 } from 'lucide-react';
+import type { MemberRole, MemberPermissions } from '@/types/database';
+import { MemberPermissionsModal } from '@/components/household/MemberPermissionsModal';
+import { resolveMemberPermissions } from '@/lib/permissions';
 
 interface MemberDetail {
   id: string;
   user_id: string;
-  role: 'owner' | 'member';
+  role: MemberRole;
+  permissions?: MemberPermissions;
   joined_at: string;
   users: {
     id: string;
@@ -63,6 +73,9 @@ export default function HouseholdPage() {
   // Remove member modal
   const [removingMember, setRemovingMember] = useState<MemberDetail | null>(null);
   const [removing, setRemoving] = useState(false);
+
+  // Edit Member Permissions Modal (Owner only)
+  const [editingPermissionsMember, setEditingPermissionsMember] = useState<MemberDetail | null>(null);
 
   // Delete Household modal
   const [deletingHousehold, setDeletingHousehold] = useState<{ id: string; name: string } | null>(
@@ -112,14 +125,28 @@ export default function HouseholdPage() {
       }
 
       const combined: MemberDetail[] = memberRows
-        .sort((a, b) => (a.role === 'owner' ? -1 : 1))
+        .sort((a, b) => {
+          if (a.role === 'owner') return -1;
+          if (b.role === 'owner') return 1;
+          if (a.role === 'admin') return -1;
+          if (b.role === 'admin') return 1;
+          return 0;
+        })
         .map((m, index) => {
           const profile = userMap.get(m.user_id);
           const isSelf = m.user_id === authUser?.id;
+          const resolved = resolveMemberPermissions(
+            m.role,
+            m.permissions,
+            currentHousehold.id,
+            m.user_id
+          );
+
           return {
             id: (m.id as string) || `${m.household_id}_${m.user_id}` || String(index),
             user_id: m.user_id,
-            role: (m.role as 'owner' | 'member') || 'member',
+            role: resolved.role,
+            permissions: resolved.permissions,
             joined_at: (m.joined_at as string) || (m.created_at as string) || '',
             users: profile || {
               id: m.user_id,
@@ -499,21 +526,72 @@ export default function HouseholdPage() {
                         <span className="text-xs text-muted block truncate">
                           {m.users?.email}
                         </span>
+
+                        {/* Summary of member permissions */}
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {m.role === 'owner' ? (
+                            <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                              👑 สิทธิ์สูงสุด ดูแลสมาชิกและจัดการตู้เย็นได้ทั้งหมด
+                            </span>
+                          ) : m.role === 'admin' ? (
+                            <span className="text-[11px] font-medium text-sky-600 dark:text-sky-400">
+                              🛡️ ผู้ดูแล • จัดการของในตู้เย็นได้ทั้งหมด
+                            </span>
+                          ) : (
+                            <>
+                              {m.permissions?.can_add_items ||
+                              m.permissions?.can_edit_items ||
+                              m.permissions?.can_delete_items ? (
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className="text-[10px] text-muted font-medium mr-0.5">สิทธิ์:</span>
+                                  {m.permissions?.can_add_items && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20">
+                                      + เพิ่มของ
+                                    </span>
+                                  )}
+                                  {m.permissions?.can_edit_items && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold border border-blue-500/20">
+                                      ✏️ แก้ไข
+                                    </span>
+                                  )}
+                                  {m.permissions?.can_delete_items && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 font-semibold border border-rose-500/20">
+                                      🗑️ ลบ
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+                                  <Eye className="w-3 h-3 text-muted" />
+                                  <span>ดูข้อมูลอย่างเดียว</span>
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Role Badge */}
                       <span
                         className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
                           m.role === 'owner'
-                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                            : 'bg-muted/15 text-muted'
+                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20'
+                            : m.role === 'admin'
+                            ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20'
+                            : 'bg-muted/15 text-muted border border-border'
                         }`}
                       >
                         {m.role === 'owner' ? (
                           <>
-                            <Shield className="w-3 h-3 text-amber-500" />
+                            <Crown className="w-3 h-3 text-amber-500" />
                             <span>เจ้าของ</span>
+                          </>
+                        ) : m.role === 'admin' ? (
+                          <>
+                            <ShieldCheck className="w-3 h-3 text-sky-500" />
+                            <span>ผู้ดูแล</span>
                           </>
                         ) : (
                           <>
@@ -523,11 +601,25 @@ export default function HouseholdPage() {
                         )}
                       </span>
 
+                      {/* Manage Permissions Button (Owner only, cannot edit self) */}
+                      {isOwner && !isSelf && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingPermissionsMember(m)}
+                          className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-950/50 hover:bg-primary-100 dark:hover:bg-primary-900/60 border border-primary-500/30 transition active:scale-95 shadow-2xs cursor-pointer"
+                          title="กำหนดสิทธิ์การใช้งานของสมาชิกคนนี้"
+                        >
+                          <Sliders className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+                          <span className="hidden sm:inline">กำหนดสิทธิ์</span>
+                        </button>
+                      )}
+
                       {/* Remove Button (Owner only, cannot remove self) */}
                       {isOwner && !isSelf && (
                         <button
+                          type="button"
                           onClick={() => setRemovingMember(m)}
-                          className="p-1.5 rounded-lg text-muted hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
+                          className="p-1.5 rounded-lg text-muted hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
                           title="นำออกจากครัวเรือน"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -650,6 +742,29 @@ export default function HouseholdPage() {
           </div>
         </div>
       )}
+
+      {/* Member Permissions Management Modal (Owner only) */}
+      <MemberPermissionsModal
+        isOpen={Boolean(editingPermissionsMember)}
+        onClose={() => setEditingPermissionsMember(null)}
+        member={editingPermissionsMember}
+        householdId={currentHousehold?.id || ''}
+        householdName={currentHousehold?.name}
+        isCurrentUserOwner={isOwner}
+        operatorName={user?.display_name || authUser?.email?.split('@')[0] || 'เจ้าของบ้าน'}
+        onSuccess={(updatedRole, updatedPermissions) => {
+          if (editingPermissionsMember) {
+            setMembers((prev) =>
+              prev.map((item) =>
+                item.user_id === editingPermissionsMember.user_id
+                  ? { ...item, role: updatedRole, permissions: updatedPermissions }
+                  : item
+              )
+            );
+          }
+          fetchMembers();
+        }}
+      />
 
       {/* Remove Member Confirmation Modal */}
       <ConfirmModal

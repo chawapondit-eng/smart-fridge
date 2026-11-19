@@ -15,7 +15,6 @@ import {
   getDaysUntilExpiry,
   normalizeDateString,
   formatThaiDate,
-  formatBangkokTodayThai,
   formatExpiryShortBadge,
 } from '@/lib/date';
 import { getAutoEmoji } from '@/components/inventory/EditProductModal';
@@ -34,7 +33,6 @@ import {
   Copy,
   Check,
   Users,
-  Calendar,
   AlertTriangle,
   Leaf,
   Package,
@@ -50,7 +48,7 @@ interface ExpiringItem extends Item {
 
 export default function DashboardPage() {
   const supabase = createClient();
-  const { currentHousehold, fridges, user, authUser, refreshHouseholds } = useHousehold();
+  const { currentHousehold, fridges, user, authUser, refreshHouseholds, canAddItems } = useHousehold();
 
   const [items, setItems] = useState<Item[]>([]);
   const [expiringItems, setExpiringItems] = useState<ExpiringItem[]>([]);
@@ -205,8 +203,6 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  const displayName = user?.display_name || authUser?.email?.split('@')[0] || 'คุณ';
-  const todayThaiDisplay = formatBangkokTodayThai();
   const totalItemsCount = items.reduce((acc, curr) => acc + (Number(curr.quantity) > 0 ? 1 : 0), 0);
   const expiredCount = expiredItems.length;
   const expiringSoonCount = expiringItems.length;
@@ -297,6 +293,10 @@ export default function DashboardPage() {
   }
 
   function handleOpenAddProduct(fridgeId?: string) {
+    if (!canAddItems) {
+      toast.error('คุณไม่มีสิทธิ์เพิ่มวัตถุดิบ (สิทธิ์ดูข้อมูลอย่างเดียว กรุณาติดต่อเจ้าของบ้าน)');
+      return;
+    }
     setSelectedFridgeId(fridgeId);
     setShowAddProduct(true);
   }
@@ -305,82 +305,70 @@ export default function DashboardPage() {
     <MainLayout>
       <div className="flex flex-col w-full pb-10 gap-6 animate-in fade-in duration-300">
         {/* =========================================================================
-            Section 1: Personalized Warm Greeting & Household Header (Image 1)
+            Household Hub Card (ศูนย์ข้อมูลและจัดการบ้าน)
            ========================================================================= */}
-        <section className="flex flex-col gap-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex flex-col min-w-0">
-              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-muted mb-0.5">
-                <Calendar className="w-3.5 h-3.5 text-primary-600 shrink-0" />
-                <span>{todayThaiDisplay}</span>
+        {currentHousehold && (
+          <section className="p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* ซ้าย: ข้อมูลบ้าน (ไอคอนบ้าน + ชื่อบ้าน + จำนวนสมาชิก) */}
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-primary-500/15 text-primary-600 flex items-center justify-center shrink-0 border border-primary-500/20 shadow-2xs">
+                <span className="material-symbols-outlined text-[24px]">cottage</span>
               </div>
-              <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground tracking-tight flex items-center gap-2">
-                <span>สวัสดีคุณ{displayName}</span>
-                <span className="text-secondary-600">🌿</span>
-              </h1>
-              <p className="text-xs text-muted mt-0.5">
-                มีวัตถุดิบทั้งหมด {totalItemsCount} รายการ ใน {fridges.length} ตู้เย็น
-              </p>
-            </div>
-
-            {/* Quick Share Circle Button matching Image 1 Top Right */}
-            <button
-              type="button"
-              onClick={() => setShowShareModal(true)}
-              className="w-10 h-10 rounded-full bg-primary-600 hover:bg-primary-700 text-white flex items-center justify-center transition shadow-sm shrink-0 active:scale-95 cursor-pointer"
-              title="แชร์รหัสบ้าน"
-            >
-              <Share2 className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Active Household Context Chip + Share Pin */}
-          {currentHousehold && (
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-low px-4 py-2.5 rounded-2xl border border-border/70 shadow-2xs">
-              <div className="flex items-center gap-3 min-w-0">
-                <button
-                  type="button"
-                  onClick={() => setShowShareModal(true)}
-                  className="flex items-center gap-2 text-foreground hover:text-primary-600 transition text-left cursor-pointer"
-                  title="คลิกเพื่อดูและแชร์รหัสบ้าน"
-                >
-                  <span className="material-symbols-outlined text-[20px] text-primary-600 shrink-0">cottage</span>
-                  <span className="font-heading font-bold text-sm truncate max-w-[140px] sm:max-w-xs">
-                    {currentHousehold.name}
-                  </span>
-                </button>
-                <span className="text-muted text-xs">|</span>
-                <Link
-                  href="/household"
-                  className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition shrink-0"
-                  title="จัดการสมาชิกในบ้าน"
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>{memberCount} คน</span>
-                </Link>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted">รหัสบ้าน:</span>
-                <span className="text-xs font-bold text-primary-600 tracking-wider">
-                  {householdCode}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCopyHouseholdCode}
-                  className="p-1 rounded-lg hover:bg-surface-container text-muted hover:text-foreground transition active:scale-95 cursor-pointer"
-                  title="คัดลอกรหัสบ้าน"
-                >
-                  {copiedCode ? (
-                    <Check className="w-3.5 h-3.5 text-secondary-600" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                </button>
+              <div className="flex flex-col min-w-0">
+                <h2 className="font-heading font-bold text-base sm:text-lg text-foreground truncate">
+                  {currentHousehold.name}
+                </h2>
+                <div className="flex items-center gap-1.5 text-xs text-muted mt-0.5">
+                  <Users className="w-3.5 h-3.5 text-primary-600 shrink-0" />
+                  <span className="font-medium">สมาชิก {memberCount} คน</span>
+                </div>
               </div>
             </div>
-          )}
-        </section>
+
+            {/* ขวา: ปุ่มจัดการบ้าน (คัดลอกรหัสเชิญ / แชร์รหัสบ้าน + จัดการสมาชิก) */}
+            <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+              {/* ปุ่มคัดลอกรหัสเชิญ */}
+              <button
+                type="button"
+                onClick={handleCopyHouseholdCode}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-container-low hover:bg-surface-container border border-border text-foreground text-xs font-semibold transition active:scale-95 shadow-2xs cursor-pointer flex-1 sm:flex-initial"
+                title="คัดลอกรหัสเชิญเข้าบ้าน"
+              >
+                {copiedCode ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-emerald-600 font-bold">คัดลอกแล้ว</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-primary-600" />
+                    <span>คัดลอกรหัสเชิญ</span>
+                  </>
+                )}
+              </button>
+
+              {/* ปุ่มแชร์รหัสบ้าน */}
+              <button
+                type="button"
+                onClick={() => setShowShareModal(true)}
+                className="inline-flex items-center justify-center p-2 rounded-xl bg-surface-container-low hover:bg-surface-container border border-border text-primary-600 hover:text-primary-700 transition active:scale-95 shadow-2xs cursor-pointer"
+                title="แชร์รหัสบ้าน / QR Code"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+              </button>
+
+              {/* ปุ่มจัดการสมาชิก */}
+              <Link
+                href="/household"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition active:scale-95 shadow-xs cursor-pointer flex-1 sm:flex-initial"
+                title="จัดการสมาชิกในบ้าน"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>จัดการสมาชิก</span>
+              </Link>
+            </div>
+          </section>
+        )}
 
         {/* =========================================================================
             Section 2: Quick Action Highlights (3 Pills matching Image 1)

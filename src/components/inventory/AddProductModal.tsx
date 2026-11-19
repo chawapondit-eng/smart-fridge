@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useHousehold } from '@/contexts/HouseholdContext';
 import toast from 'react-hot-toast';
-import { X, Plus, Sparkles, Receipt, Refrigerator, Calendar, Bell, Camera } from 'lucide-react';
+import { X, Plus, Sparkles, Receipt, Refrigerator, Calendar, Bell, Camera, AlertCircle, Lock } from 'lucide-react';
 import { getAutoEmoji } from './EditProductModal';
 import {
   addDaysFromBangkokToday,
@@ -40,7 +40,7 @@ export function AddProductModal({
 }: AddProductModalProps) {
   const router = useRouter();
   const supabase = createClient();
-  const { currentHousehold, fridges, authUser, user } = useHousehold();
+  const { currentHousehold, fridges, authUser, user, canAddItems } = useHousehold();
 
   const [name, setName] = useState('');
   const [fridgeId, setFridgeId] = useState(defaultFridgeId || fridges[0]?.id || '');
@@ -122,6 +122,12 @@ export function AddProductModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (!canAddItems) {
+      toast.error('คุณไม่มีสิทธิ์เพิ่มวัตถุดิบ (สิทธิ์ดูข้อมูลอย่างเดียว กรุณาติดต่อเจ้าของบ้าน)');
+      return;
+    }
+
     if (!name.trim()) {
       toast.error('กรุณากรอกชื่อสินค้า');
       return;
@@ -315,6 +321,19 @@ export function AddProductModal({
             </p>
           </div>
         </div>
+
+        {/* Permission Notice if cannot add */}
+        {!canAddItems && (
+          <div className="mb-4 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
+            <Lock className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">สิทธิ์การใช้งานจำกัด (ดูข้อมูลได้อย่างเดียว)</p>
+              <p className="text-[11px] text-amber-700/90 dark:text-amber-400/90 mt-0.5">
+                เจ้าของบ้านกำหนดให้บัญชีของคุณดูข้อมูลได้อย่างเดียว ไม่สามารถเพิ่มวัตถุดิบใหม่ได้
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Quick Receipt Scan Action */}
         <div className="mb-4">
@@ -580,15 +599,17 @@ export function AddProductModal({
             </button>
             <button
               type="submit"
-              disabled={submitting}
-              className="px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-60 shadow-sm shadow-primary-600/20 transition flex items-center gap-2"
+              disabled={submitting || !canAddItems}
+              className="px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 shadow-sm shadow-primary-600/20 transition flex items-center gap-2"
             >
               {submitting ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : !canAddItems ? (
+                <Lock className="w-4 h-4" />
               ) : (
                 <Plus className="w-4 h-4" />
               )}
-              <span>บันทึกสินค้า</span>
+              <span>{!canAddItems ? 'ไม่มีสิทธิ์เพิ่มสินค้า' : 'บันทึกสินค้า'}</span>
             </button>
           </div>
         </form>

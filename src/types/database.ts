@@ -59,16 +59,25 @@ export interface HouseholdUpdate {
 }
 
 // ============================================================
-// Household Member
+// Household Member & Permissions
 // ============================================================
 
-export type MemberRole = 'owner' | 'member';
+export type MemberRole = 'owner' | 'admin' | 'member';
+
+export interface MemberPermissions {
+  can_view_items: boolean;
+  can_add_items: boolean;
+  can_edit_items: boolean;
+  can_delete_items: boolean;
+  can_manage_members: boolean;
+}
 
 export interface HouseholdMember {
   id: UUID;
   household_id: UUID;
   user_id: UUID;
   role: MemberRole;
+  permissions?: MemberPermissions;
   joined_at: Timestamp;
 }
 

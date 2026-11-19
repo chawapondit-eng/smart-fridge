@@ -1,12 +1,14 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { Household, Fridge, MemberRole, User as DbUser } from '@/types/database';
+import type { Household, Fridge, MemberRole, MemberPermissions, User as DbUser } from '@/types/database';
+import { resolveMemberPermissions, DEFAULT_ROLE_PERMISSIONS } from '@/lib/permissions';
 import toast from 'react-hot-toast';
 
-interface HouseholdWithRole extends Household {
+export interface HouseholdWithRole extends Household {
   role: MemberRole;
+  permissions?: MemberPermissions;
 }
 
 interface HouseholdContextType {
@@ -16,6 +18,15 @@ interface HouseholdContextType {
   currentHousehold: HouseholdWithRole | null;
   fridges: Fridge[];
   loading: boolean;
+  currentRole: MemberRole;
+  currentPermissions: MemberPermissions;
+  canViewItems: boolean;
+  canAddItems: boolean;
+  canEditItems: boolean;
+  canDeleteItems: boolean;
+  canManageMembers: boolean;
+  isOwner: boolean;
+  isAdmin: boolean;
   setCurrentHousehold: (h: HouseholdWithRole) => void;
   createHousehold: (name: string) => Promise<Household | null>;
   deleteHousehold: (id: string) => Promise<boolean>;
@@ -151,7 +162,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       // 1. ดึง household_members ของ user
       const { data: memberRows, error: mError } = await supabase
         .from('household_members')
-        .select('household_id, role')
+        .select('*')
         .eq('user_id', authUser.id);
 
       if (mError) {
@@ -184,11 +195,20 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
 
       if (hData) {
         const roleMap = new Map(memberRows.map((m) => [m.household_id, m.role as MemberRole]));
+        const permsMap = new Map(
+          memberRows.map((m) => [m.household_id, m.permissions as MemberPermissions | undefined])
+        );
 
-        const list: HouseholdWithRole[] = hData.map((h) => ({
-          ...h,
-          role: roleMap.get(h.id) || 'member',
-        }));
+        const list: HouseholdWithRole[] = hData.map((h) => {
+          const rawRole = roleMap.get(h.id) || 'member';
+          const rawPerms = permsMap.get(h.id);
+          const resolved = resolveMemberPermissions(rawRole, rawPerms, h.id, authUser.id);
+          return {
+            ...h,
+            role: resolved.role,
+            permissions: resolved.permissions,
+          };
+        });
 
         setHouseholds(list);
 
@@ -719,6 +739,22 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // คำนวณสิทธิ์จริงของ User ปัจจุบันใน Household ที่เลือกอยู่
+  const resolvedCurrentPermissions = useMemo(() => {
+    if (!currentHousehold || !authUser) {
+      return {
+        role: 'member' as MemberRole,
+        permissions: DEFAULT_ROLE_PERMISSIONS.member,
+      };
+    }
+    return resolveMemberPermissions(
+      currentHousehold.role,
+      currentHousehold.permissions,
+      currentHousehold.id,
+      authUser.id
+    );
+  }, [currentHousehold, authUser]);
+
   return (
     <HouseholdContext.Provider
       value={{
@@ -728,6 +764,15 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         currentHousehold,
         fridges,
         loading,
+        currentRole: resolvedCurrentPermissions.role,
+        currentPermissions: resolvedCurrentPermissions.permissions,
+        canViewItems: resolvedCurrentPermissions.permissions.can_view_items,
+        canAddItems: resolvedCurrentPermissions.permissions.can_add_items,
+        canEditItems: resolvedCurrentPermissions.permissions.can_edit_items,
+        canDeleteItems: resolvedCurrentPermissions.permissions.can_delete_items,
+        canManageMembers: resolvedCurrentPermissions.permissions.can_manage_members,
+        isOwner: resolvedCurrentPermissions.role === 'owner',
+        isAdmin: resolvedCurrentPermissions.role === 'admin',
         setCurrentHousehold,
         createHousehold,
         deleteHousehold,

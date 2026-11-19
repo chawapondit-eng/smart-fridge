@@ -43,7 +43,7 @@ interface ItemWithBatches extends Item {
 function FridgeDetailContent({ fridgeId }: { fridgeId: string }) {
   const router = useRouter();
   const supabase = createClient();
-  const { fridges, currentHousehold, authUser, user } = useHousehold();
+  const { fridges, currentHousehold, authUser, user, canAddItems, canEditItems, canDeleteItems } = useHousehold();
 
   const currentFridge = fridges.find((f) => f.id === fridgeId);
 
@@ -164,6 +164,10 @@ function FridgeDetailContent({ fridgeId }: { fridgeId: string }) {
   }, [fetchItems]);
 
   async function handleDeleteItemConfirm() {
+    if (!canDeleteItems) {
+      toast.error('คุณไม่มีสิทธิ์ลบสินค้า (สิทธิ์ดูข้อมูลอย่างเดียว กรุณาติดต่อเจ้าของบ้าน)');
+      return;
+    }
     if (!deletingItem || !currentHousehold?.id || !authUser?.id) return;
     setDeleting(true);
     try {
