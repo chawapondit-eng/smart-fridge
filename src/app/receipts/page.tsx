@@ -150,6 +150,10 @@ function ReceiptScannerContent() {
     receiptCount: 0,
     supermarketSpent: 0,
     deliverySpent: 0,
+    isOverBudget: false,
+    isNearLimit: false,
+    overBudgetAmount: 0,
+    history: [],
   });
 
   const loadBudget = React.useCallback(async () => {

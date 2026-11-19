@@ -10,6 +10,8 @@ import { AddProductModal } from '@/components/inventory/AddProductModal';
 import { FridgeModal } from '@/components/fridge/FridgeModal';
 import { ShareHouseholdModal } from '@/components/household/ShareHouseholdModal';
 import { EditBudgetModal } from '@/components/budget/EditBudgetModal';
+import { BudgetOverviewCard } from '@/components/dashboard/BudgetOverviewCard';
+import { SmartHealthDonutCard } from '@/components/dashboard/SmartHealthDonutCard';
 import { fetchWeeklyBudgetSummary, type WeeklyBudgetSummary } from '@/lib/budget';
 import {
   getDaysUntilExpiry,
@@ -66,7 +68,28 @@ export default function DashboardPage() {
     receiptCount: 0,
     supermarketSpent: 0,
     deliverySpent: 0,
+    isOverBudget: false,
+    isNearLimit: false,
+    overBudgetAmount: 0,
+    history: [],
   });
+
+  const handleBudgetUpdated = useCallback((newBudget: number) => {
+    setBudgetSummary((prev) => {
+      const remaining = Math.max(0, newBudget - prev.totalSpent);
+      const overBudgetAmount = Math.max(0, prev.totalSpent - newBudget);
+      const percentUsed = newBudget > 0 ? Math.round((prev.totalSpent / newBudget) * 100) : 0;
+      return {
+        ...prev,
+        budget: newBudget,
+        remaining,
+        percentUsed,
+        isOverBudget: prev.totalSpent > newBudget,
+        isNearLimit: prev.totalSpent <= newBudget && percentUsed >= 80,
+        overBudgetAmount,
+      };
+    });
+  }, []);
 
   // Modals
   const [showAddProduct, setShowAddProduct] = useState(false);
@@ -401,226 +424,108 @@ export default function DashboardPage() {
         </section>
 
         {/* =========================================================================
-            Section 3: 4 Stat Cards in 1 Row (matching Image 1)
+            Section 3: ภาพรวมงบประมาณ (Budget Overview) — อยู่ด้านบนสุดเหนือความสดใหม่
            ========================================================================= */}
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {/* Card 1: วัตถุดิบทั้งหมด */}
-          <Link
-            href="/fridges"
-            className="flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border hover:border-primary-500/50 transition-all shadow-xs group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="w-9 h-9 rounded-2xl bg-primary-500/15 flex items-center justify-center text-primary-600">
-                <Package className="w-4 h-4" />
-              </span>
-              <span className="text-[11px] font-bold text-muted">
-                {fridges.length} ตู้เย็น
-              </span>
-            </div>
-            <div className="mt-4">
-              <span className="font-heading text-2xl sm:text-3xl font-bold text-foreground block group-hover:text-primary-600 transition">
-                {totalItemsCount}
-              </span>
-              <span className="text-xs text-muted mt-0.5 block">วัตถุดิบทั้งหมด</span>
-            </div>
-          </Link>
-
-          {/* Card 2: ยังสดใหม่ */}
-          <Link
-            href="/fridges"
-            className="flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border hover:border-emerald-500/50 transition-all shadow-xs group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="w-9 h-9 rounded-2xl bg-emerald-500/15 flex items-center justify-center text-emerald-500">
-                <Leaf className="w-4 h-4" />
-              </span>
-              <span className="text-[11px] font-bold text-emerald-500">
-                สดใหม่
-              </span>
-            </div>
-            <div className="mt-4">
-              <span className="font-heading text-2xl sm:text-3xl font-bold text-foreground block group-hover:text-emerald-500 transition">
-                {freshItemsCount}
-              </span>
-              <span className="text-xs text-muted mt-0.5 block">ยังสดใหม่</span>
-            </div>
-          </Link>
-
-          {/* Card 3: ใกล้หมดอายุ (0-3 วัน) */}
-          <Link
-            href="/expirations"
-            className="flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border hover:border-amber-500/50 transition-all shadow-xs group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="w-9 h-9 rounded-2xl bg-amber-500/15 flex items-center justify-center text-amber-500">
-                <AlarmClock className="w-4 h-4" />
-              </span>
-            </div>
-            <div className="mt-4">
-              <span className="font-heading text-2xl sm:text-3xl font-bold text-foreground block group-hover:text-amber-500 transition">
-                {expiringSoonCount}
-              </span>
-              <span className="text-xs text-muted mt-0.5 block">ใกล้หมดอายุ (0-3 วัน)</span>
-            </div>
-          </Link>
-
-          {/* Card 4: หมดอายุแล้ว */}
-          <Link
-            href="/expirations"
-            className="flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border hover:border-rose-500/50 transition-all shadow-xs group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="w-9 h-9 rounded-2xl bg-rose-500/15 flex items-center justify-center text-rose-500">
-                <AlertTriangle className="w-4 h-4" />
-              </span>
-              {expiredCount > 0 && (
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-              )}
-            </div>
-            <div className="mt-4">
-              <span className="font-heading text-2xl sm:text-3xl font-bold text-foreground block group-hover:text-rose-500 transition">
-                {expiredCount}
-              </span>
-              <span className="text-xs text-muted mt-0.5 block">หมดอายุแล้ว</span>
-            </div>
-          </Link>
-        </section>
+        {currentHousehold && (
+          <BudgetOverviewCard
+            summary={budgetSummary}
+            householdId={currentHousehold.id}
+            householdName={currentHousehold.name}
+            onBudgetUpdated={handleBudgetUpdated}
+          />
+        )}
 
         {/* =========================================================================
-            Section 4: Priority Use-First & Grocery Budget Side-by-Side (Image 1)
+            Section 4: ความสดใหม่ของวัตถุดิบ (Smart Health — Donut Chart)
            ========================================================================= */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
-          {/* Card Left: รายการที่ควรนำมาใช้ก่อน (lg:col-span-7) */}
-          <div className="lg:col-span-7 flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border gap-3 shadow-xs">
-            <div>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center">
-                    <AlarmClock className="w-4 h-4" />
-                  </span>
-                  <div>
-                    <h2 className="font-heading font-bold text-sm sm:text-base text-foreground">
-                      รายการที่ควรนำมาใช้ก่อน
-                    </h2>
-                    <p className="text-[11px] text-muted">
-                      กดรายการเพื่อเปิดดูในตู้เย็น หรือส่งให้ AI แนะนำเมนู
-                    </p>
-                  </div>
-                </div>
-                <Link
-                  href="/recipes"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-500/10 hover:bg-primary-500/20 text-primary-600 dark:text-primary-400 text-xs font-bold transition shrink-0 cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>🪄 สุ่มเมนู AI</span>
-                </Link>
-              </div>
+        <SmartHealthDonutCard
+          totalItems={totalItemsCount}
+          freshItems={freshItemsCount}
+          expiringSoonItems={expiringSoonCount}
+          expiredItems={expiredCount}
+          fridgeCount={fridges.length}
+        />
 
-              {/* Items List */}
-              <div className="mt-3.5 divide-y divide-border/60">
-                {urgentList.length > 0 ? (
-                  urgentList.slice(0, 3).map((item) => {
-                    const isExpired = item.daysLeft < 0;
-                    const isToday = item.daysLeft === 0;
-                    return (
-                      <Link
-                        key={item.id}
-                        href={item.fridge_id ? `/fridges?selected=${item.fridge_id}` : '/fridges'}
-                        className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3 hover:opacity-90 transition group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="w-9 h-9 rounded-2xl bg-surface-container flex items-center justify-center text-lg shrink-0">
-                            {getAutoEmoji(item.name)}
-                          </span>
-                          <div className="flex flex-col min-w-0">
-                            <span className="font-heading font-bold text-sm text-foreground truncate group-hover:text-primary-600 transition">
-                              {item.name}
-                            </span>
-                            <span className="text-[11px] text-muted truncate">
-                              {isExpired
-                                ? 'ควรตรวจสอบ/นำออกจากตู้'
-                                : isToday
-                                ? 'ควรปรุงรับประทานภายในวันนี้'
-                                : `ควรใช้ปรุงอาหารภายใน ${item.daysLeft} วัน`}
-                            </span>
-                          </div>
-                        </div>
-
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-xs font-bold shrink-0 border ${
-                            isExpired
-                              ? 'bg-rose-500/15 text-rose-500 border-rose-500/30'
-                              : isToday
-                              ? 'bg-amber-500/15 text-amber-500 border-amber-500/30'
-                              : 'bg-amber-500/15 text-amber-500 border-amber-500/30'
-                          }`}
-                        >
-                          {isExpired
-                            ? `หมดอายุแล้ว ${Math.abs(item.daysLeft)} วัน`
-                            : isToday
-                            ? 'หมดอายุวันนี้'
-                            : `เหลือ ${item.daysLeft} วัน`}
-                        </span>
-                      </Link>
-                    );
-                  })
-                ) : (
-                  <div className="py-4 text-center text-xs text-muted">
-                    🥦 วัตถุดิบทั้งหมดยังสดใหม่ ไม่มีรายการที่ต้องรีบใช้
-                  </div>
-                )}
+        {/* =========================================================================
+            Section 5: รายการวัตถุดิบที่ควรนำมาใช้ก่อน (Priority Use-First)
+           ========================================================================= */}
+        <section className="p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border gap-3 shadow-xs flex flex-col">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center">
+                <AlarmClock className="w-4 h-4" />
+              </span>
+              <div>
+                <h2 className="font-heading font-bold text-sm sm:text-base text-foreground">
+                  รายการที่ควรนำมาใช้ก่อน
+                </h2>
+                <p className="text-[11px] text-muted">
+                  วัตถุดิบใกล้หมดอายุและหมดอายุที่ควรจัดการเป็นอันดับแรก
+                </p>
               </div>
             </div>
+            <Link
+              href="/recipes"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold transition shrink-0 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>🪄 สุ่มเมนู AI</span>
+            </Link>
           </div>
 
-          {/* Card Right: งบอาหารสัปดาห์นี้ (lg:col-span-5) */}
-          <div className="lg:col-span-5 flex flex-col justify-between p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border gap-3 shadow-xs">
-            <div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-xl bg-primary-100 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 flex items-center justify-center">
-                    <Wallet className="w-4 h-4 text-primary-600" />
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowEditBudgetModal(true)}
-                    className="font-heading font-bold text-sm text-foreground flex items-center gap-1.5 hover:text-primary-600 transition group cursor-pointer"
+          {/* Items List */}
+          <div className="mt-2 divide-y divide-border/60">
+            {urgentList.length > 0 ? (
+              urgentList.slice(0, 5).map((item) => {
+                const isExpired = item.daysLeft < 0;
+                const isToday = item.daysLeft === 0;
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.fridge_id ? `/fridges?selected=${item.fridge_id}` : '/fridges'}
+                    className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3 hover:opacity-90 transition group cursor-pointer"
                   >
-                    <span>งบอาหารสัปดาห์นี้</span>
-                    <Edit2 className="w-3.5 h-3.5 text-muted group-hover:text-primary-600 transition" />
-                  </button>
-                </div>
-                <span className="text-[11px] font-bold text-primary-600 dark:text-primary-300 bg-primary-500/15 border border-primary-500/25 px-2.5 py-1 rounded-full">
-                  เหลือ ฿{budgetSummary.remaining.toLocaleString()}
-                </span>
-              </div>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-9 h-9 rounded-2xl bg-surface-container flex items-center justify-center text-lg shrink-0">
+                        {getAutoEmoji(item.name)}
+                      </span>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-heading font-bold text-sm text-foreground truncate group-hover:text-primary-600 transition">
+                          {item.name}
+                        </span>
+                        <span className="text-[11px] text-muted truncate">
+                          {isExpired
+                            ? 'ควรตรวจสอบ/นำออกจากตู้'
+                            : isToday
+                            ? 'ควรปรุงรับประทานภายในวันนี้'
+                            : `ควรใช้ปรุงอาหารภายใน ${item.daysLeft} วัน`}
+                        </span>
+                      </div>
+                    </div>
 
-              <div className="flex items-baseline justify-between mt-3">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="font-heading text-2xl font-extrabold text-foreground">
-                    ฿{budgetSummary.totalSpent.toLocaleString()}
-                  </span>
-                  <span className="text-xs text-muted">
-                    / ฿{budgetSummary.budget.toLocaleString()}
-                  </span>
-                </div>
-                <span className="text-xs text-muted font-medium">
-                  {budgetSummary.percentUsed}% ที่ใช้ไป
-                </span>
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold shrink-0 border ${
+                        isExpired
+                          ? 'bg-rose-500/15 text-rose-500 border-rose-500/30'
+                          : isToday
+                          ? 'bg-amber-500/15 text-amber-500 border-amber-500/30'
+                          : 'bg-amber-500/15 text-amber-500 border-amber-500/30'
+                      }`}
+                    >
+                      {isExpired
+                        ? `หมดอายุแล้ว ${Math.abs(item.daysLeft)} วัน`
+                        : isToday
+                        ? 'หมดอายุวันนี้'
+                        : `เหลือ ${item.daysLeft} วัน`}
+                    </span>
+                  </Link>
+                );
+              })
+            ) : (
+              <div className="py-6 text-center text-xs text-muted">
+                🥦 วัตถุดิบทั้งหมดยังสดใหม่ ไม่มีรายการที่ต้องรีบใช้
               </div>
-
-              {/* Segmented / Solid Progress Bar */}
-              <div className="w-full bg-surface-container rounded-full h-2 overflow-hidden mt-3">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    budgetSummary.percentUsed > 100
-                      ? 'bg-rose-500'
-                      : 'bg-primary-500'
-                  }`}
-                  style={{ width: `${Math.min(100, budgetSummary.percentUsed)}%` }}
-                />
-              </div>
-            </div>
+            )}
           </div>
         </section>
 
