@@ -7,7 +7,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { useHousehold } from '@/contexts/HouseholdContext';
 import { createClient } from '@/lib/supabase/client';
 import { AddProductModal } from '@/components/inventory/AddProductModal';
-import { EditProductModal } from '@/components/inventory/EditProductModal';
+import { EditProductModal, getAutoEmoji } from '@/components/inventory/EditProductModal';
 import { FridgeModal } from '@/components/fridge/FridgeModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { SkeletonCard, SkeletonRow } from '@/components/ui/LoadingSkeleton';
@@ -697,7 +697,7 @@ function FridgesContent() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span>{item.image_url || '🥫'}</span>
+                        <span>{item.image_url || getAutoEmoji(item.name) || '🥫'}</span>
                       )}
                     </div>
 
@@ -848,7 +848,7 @@ function FridgesContent() {
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-lg">
-                        {item.image_url || '🥫'}
+                        {item.image_url || getAutoEmoji(item.name) || '🥫'}
                       </div>
                       <div className="flex flex-col min-w-0">
                         <span className="font-heading font-bold text-xs text-on-surface truncate">

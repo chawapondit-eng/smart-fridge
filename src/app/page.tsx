@@ -487,7 +487,7 @@ export default function DashboardPage() {
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="w-9 h-9 rounded-2xl bg-surface-container flex items-center justify-center text-lg shrink-0">
-                        {getAutoEmoji(item.name)}
+                        {item.image_url || getAutoEmoji(item.name)}
                       </span>
                       <div className="flex flex-col min-w-0">
                         <span className="font-heading font-bold text-sm text-foreground truncate group-hover:text-primary-600 transition">

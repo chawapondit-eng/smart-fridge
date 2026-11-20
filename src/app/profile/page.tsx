@@ -18,8 +18,6 @@ import {
   Save,
   Shield,
   Sparkles,
-  Camera,
-  Upload,
   Trash2,
   Smile,
 } from 'lucide-react';
@@ -56,27 +54,6 @@ export default function ProfilePage() {
       if (cached) setAvatarUrl(cached);
     }
   }, [user, authUser]);
-
-  // จัดการอัปโหลดรูปภาพโปรไฟล์จากอุปกรณ์
-  function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('ขนาดรูปภาพต้องไม่เกิน 2MB');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      const result = uploadEvent.target?.result as string;
-      if (result) {
-        setAvatarUrl(result);
-        toast.success('เลือกรูปโปรไฟล์แล้ว (อย่าลืมกดบันทึกข้อมูล)');
-      }
-    };
-    reader.readAsDataURL(file);
-  }
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -170,8 +147,8 @@ export default function ProfilePage() {
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
           {/* Avatar Preview & Header */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-5 pb-6 border-b border-border">
-            {/* Avatar Circle with Upload Trigger */}
-            <div className="relative group self-center sm:self-auto">
+            {/* Avatar Circle */}
+            <div className="relative self-center sm:self-auto">
               <div className="w-20 h-20 rounded-2xl bg-primary-100 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 font-extrabold text-3xl flex items-center justify-center border-2 border-primary-500/30 overflow-hidden shadow-md">
                 {isDataUrl ? (
                   <img
@@ -185,20 +162,6 @@ export default function ProfilePage() {
                   displayName.charAt(0).toUpperCase()
                 )}
               </div>
-
-              {/* Camera Icon Overlay */}
-              <label
-                title="เปลี่ยนรูปภาพ"
-                className="absolute -bottom-1.5 -right-1.5 p-2 rounded-xl bg-primary-600 text-white shadow-md hover:bg-primary-700 cursor-pointer active:scale-95 transition"
-              >
-                <Camera className="w-3.5 h-3.5" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAvatarUpload}
-                  className="hidden"
-                />
-              </label>
             </div>
 
             <div className="space-y-1 text-center sm:text-left flex-1">
@@ -216,12 +179,12 @@ export default function ProfilePage() {
           </div>
 
           <form onSubmit={handleSaveProfile} className="space-y-5">
-            {/* Avatar Selection Box */}
+            {/* Avatar Emoji Selection Box */}
             <div className="p-4 rounded-xl border border-border bg-muted/5 space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold uppercase tracking-wider text-muted flex items-center gap-1.5">
                   <Smile className="w-3.5 h-3.5 text-primary-600" />
-                  <span>เปลี่ยนรูปโปรไฟล์</span>
+                  <span>เลือก Emoji รูปโปรไฟล์</span>
                 </label>
 
                 {avatarUrl && (
@@ -229,39 +192,22 @@ export default function ProfilePage() {
                     type="button"
                     onClick={() => {
                       setAvatarUrl('');
-                      toast.success('รีเซ็ตรูปโปรไฟล์กลับเป็นค่าเริ่มต้น');
+                      toast.success('รีเซ็ตกลับเป็นตัวอักษรชื่อ');
                     }}
                     className="text-xs text-rose-500 hover:text-rose-600 font-medium flex items-center gap-1 transition"
                   >
                     <Trash2 className="w-3 h-3" />
-                    <span>ลบรูป</span>
+                    <span>ลบ Emoji</span>
                   </button>
                 )}
               </div>
 
-              {/* Upload Real Photo Button */}
-              <div>
-                <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-foreground bg-card hover:bg-muted/15 border border-border cursor-pointer transition shadow-xs">
-                  <Upload className="w-3.5 h-3.5 text-primary-600" />
-                  <span>อัปโหลดรูปถ่ายจริงจากเครื่อง/มือถือ 📷</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarUpload}
-                    className="hidden"
-                  />
-                </label>
-                <p className="text-[11px] text-muted mt-1">
-                  รองรับไฟล์ภาพ JPG, PNG (ขนาดไม่เกิน 2MB)
-                </p>
-              </div>
-
               {/* Quick Preset Avatars Grid */}
-              <div className="pt-2">
+              <div>
                 <span className="text-xs text-muted block mb-2 font-medium">
-                  หรือเลือกอวตาร/อิโมจิน่ารักๆ:
+                  แตะเลือก Emoji เพื่อใช้เป็นรูปโปรไฟล์ของคุณ:
                 </span>
-                <div className="grid grid-cols-8 sm:grid-cols-10 gap-1.5 max-h-32 overflow-y-auto p-1.5 rounded-xl bg-card border border-border">
+                <div className="grid grid-cols-8 sm:grid-cols-10 gap-1.5 max-h-36 overflow-y-auto p-1.5 rounded-xl bg-card border border-border">
                   {PROFILE_AVATARS.map((emoji) => (
                     <button
                       key={emoji}

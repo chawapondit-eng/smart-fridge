@@ -3,10 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useHousehold } from '@/contexts/HouseholdContext';
-import { X, Edit2, Upload, Calendar, AlertCircle, Lock } from 'lucide-react';
+import { X, Edit2, Calendar, AlertCircle, Lock } from 'lucide-react';
 import type { Item, ItemBatch } from '@/types/database';
 import toast from 'react-hot-toast';
-import { compressImage } from '@/lib/imageCompression';
 import {
   normalizeDateString,
   addDaysFromBangkokToday,
@@ -76,6 +75,7 @@ export function EditProductModal({
   const [unit, setUnit] = useState('ชิ้น');
   const [expiryDate, setExpiryDate] = useState('');
   const [imageUrl, setImageUrl] = useState<string>('');
+  const [userSelectedEmoji, setUserSelectedEmoji] = useState(false);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -85,6 +85,7 @@ export function EditProductModal({
       setQuantity(String(item.quantity ?? 1));
       setUnit(item.unit || 'ชิ้น');
       setImageUrl(item.image_url || getAutoEmoji(item.name || ''));
+      setUserSelectedEmoji(Boolean(item.image_url));
       setNotes(item.notes || '');
 
       const earliestBatch = item.item_batches?.find((b) => b.expiry_date);
@@ -93,32 +94,6 @@ export function EditProductModal({
   }, [item, isOpen]);
 
   if (!isOpen || !item) return null;
-
-  // จัดการอัปโหลดรูปภาพจากอุปกรณ์ (พร้อมบีบอัดอัตโนมัติ รองรับภาพจากกล้องมือถือ)
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const compressed = await compressImage(file, {
-        maxWidth: 800,
-        maxHeight: 800,
-        quality: 0.82,
-      });
-      setImageUrl(compressed.dataUrl);
-      toast.success('เลือกรูปภาพเรียบร้อย');
-    } catch {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        const result = uploadEvent.target?.result as string;
-        if (result) {
-          setImageUrl(result);
-          toast.success('เลือกรูปภาพเรียบร้อย');
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -141,11 +116,12 @@ export function EditProductModal({
     setSubmitting(true);
     try {
       // 1. อัปเดตข้อมูลสินค้าใน items
+      const finalEmoji = imageUrl || getAutoEmoji(name.trim()) || '🍎';
       const updatePayload: Record<string, unknown> = {
         name: name.trim(),
         quantity: numQty,
         unit: unit.trim() || 'ชิ้น',
-        image_url: imageUrl || null,
+        image_url: finalEmoji,
         notes: notes.trim() || null,
         status: numQty <= 0 ? 'out_of_stock' : numQty <= 1 ? 'low_stock' : 'in_stock',
         updated_at: new Date().toISOString(),
@@ -229,8 +205,6 @@ export function EditProductModal({
     }
   }
 
-  const isDataUrl = imageUrl?.startsWith('data:image') || imageUrl?.startsWith('http');
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
@@ -247,10 +221,10 @@ export function EditProductModal({
           </div>
           <div>
             <h3 className="text-lg font-bold tracking-tight text-foreground">
-              แก้ไขข้อมูลและรูปภาพสินค้า
+              แก้ไขข้อมูลวัตถุดิบ
             </h3>
             <p className="text-xs text-muted">
-              ปรับแต่งรูปภาพ ชื่อ จำนวน และวันหมดอายุ
+              ปรับแต่ง Emoji รูปวัตถุดิบ ชื่อ จำนวน และวันหมดอายุ
             </p>
           </div>
         </div>
@@ -269,55 +243,36 @@ export function EditProductModal({
             </div>
           )}
 
-          {/* Picture / Emoji Preview & Selection */}
+          {/* Emoji Selection (เลือก Emoji แทนรูปภาพ) */}
           <div className="p-4 rounded-xl border border-border bg-muted/5 space-y-3">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
-              รูปภาพ / ไอคอนสินค้า
-            </label>
-
-            <div className="flex items-center gap-4">
-              {/* Image Preview Box */}
-              <div className="w-16 h-16 rounded-2xl border-2 border-primary-500/30 bg-primary-50 dark:bg-primary-950/40 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm relative group">
-                {isDataUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt={name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-3xl">{imageUrl || getAutoEmoji(name)}</span>
-                )}
+            <div className="flex items-center gap-3.5">
+              <div className="w-14 h-14 rounded-2xl border-2 border-primary-500/30 bg-primary-50 dark:bg-primary-950/40 flex items-center justify-center shrink-0 shadow-sm text-3xl">
+                <span>{imageUrl || getAutoEmoji(name || 'สินค้า')}</span>
               </div>
-
-              {/* Upload Button */}
-              <div className="flex-1 space-y-1.5">
-                <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold text-foreground bg-card hover:bg-muted/15 border border-border cursor-pointer transition shadow-xs">
-                  <Upload className="w-3.5 h-3.5 text-primary-600" />
-                  <span>อัปโหลดรูปจริงจากเครื่อง</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                </label>
-                <p className="text-[11px] text-muted">
-                  รองรับภาพถ่ายจากกล้องมือถือจริง และไฟล์ภาพ JPG, PNG (บีบอัดอัตโนมัติ)
+              <div className="flex-1 min-w-0">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted block">
+                  Emoji รูปวัตถุดิบ
+                </span>
+                <p className="text-xs text-foreground font-medium mt-0.5 truncate">
+                  {userSelectedEmoji ? 'เลือก Emoji นี้แล้ว' : 'แนะนำตามชื่อสินค้า หรือแตะเลือกด้านล่าง'}
                 </p>
               </div>
             </div>
 
             {/* Quick Emoji Picker */}
-            <div className="pt-2">
+            <div className="pt-1">
               <span className="text-xs text-muted block mb-2 font-medium">
-                หรือเลือกอิโมจิอาหารยอดนิยม:
+                แตะเพื่อเลือก Emoji แทนรูปภาพ:
               </span>
-              <div className="grid grid-cols-8 sm:grid-cols-10 gap-1.5 max-h-28 overflow-y-auto p-1.5 rounded-xl bg-card border border-border">
+              <div className="grid grid-cols-8 sm:grid-cols-10 gap-1.5 max-h-32 overflow-y-auto p-1.5 rounded-xl bg-card border border-border">
                 {FOOD_EMOJIS.map((emoji) => (
                   <button
                     key={emoji}
                     type="button"
-                    onClick={() => setImageUrl(emoji)}
+                    onClick={() => {
+                      setImageUrl(emoji);
+                      setUserSelectedEmoji(true);
+                    }}
                     className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg hover:bg-muted/20 hover:scale-110 active:scale-95 transition ${
                       imageUrl === emoji ? 'bg-primary-100 dark:bg-primary-900/50 ring-2 ring-primary-500' : ''
                     }`}
@@ -338,10 +293,10 @@ export function EditProductModal({
               type="text"
               value={name}
               onChange={(e) => {
-                setName(e.target.value);
-                // ถ้ายังไม่ได้เลือกรูปภาพเอง ให้ auto แนะนำ emoji ตามชื่อ
-                if (!imageUrl || FOOD_EMOJIS.includes(imageUrl)) {
-                  setImageUrl(getAutoEmoji(e.target.value));
+                const newName = e.target.value;
+                setName(newName);
+                if (!userSelectedEmoji) {
+                  setImageUrl(getAutoEmoji(newName));
                 }
               }}
               placeholder="เช่น ไข่ไก่, นมสด, หมูบด..."
