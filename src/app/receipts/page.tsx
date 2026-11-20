@@ -197,9 +197,9 @@ function ReceiptScannerContent() {
         body: formData,
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
-      if (res.ok && data.success && Array.isArray(data.items) && data.items.length > 0) {
+      if (res.ok && data?.success && Array.isArray(data.items) && data.items.length > 0) {
         const defaultFId = defaultFridgeId || fridges[0]?.id || '';
 
         const mapped: ParsedReceiptItem[] = data.items.map((rawIt: unknown, idx: number) => {
@@ -308,10 +308,16 @@ function ReceiptScannerContent() {
           setActiveTab('non_food');
         }
       } else {
-        toast.error(data.error || 'ไม่สามารถอ่านข้อความจากใบเสร็จได้ กรุณาลองถ่ายภาพใหม่ให้ตรงและคมชัดขึ้น');
+        const errorMsg =
+          (data && typeof data === 'object' && typeof data.error === 'string' && data.error) ||
+          (data && typeof data === 'object' && typeof data.message === 'string' && data.message) ||
+          (!res.ok ? `การประมวลผลใบเสร็จขัดข้อง (รหัส ${res.status}) กรุณาลองใหม่อีกครั้ง` : 'ไม่สามารถอ่านข้อความจากใบเสร็จได้ กรุณาลองถ่ายภาพใหม่ให้ตรงและคมชัดขึ้น');
+        toast.error(errorMsg);
       }
-    } catch {
-      toast.error('ไม่สามารถอ่านใบเสร็จได้ กรุณาลองใหม่อีกครั้ง');
+    } catch (err: unknown) {
+      console.error('Scan receipt catch:', err);
+      const msg = err instanceof Error ? err.message : 'ไม่สามารถอ่านใบเสร็จได้ กรุณาลองใหม่อีกครั้ง';
+      toast.error(msg);
     } finally {
       setScanning(false);
     }

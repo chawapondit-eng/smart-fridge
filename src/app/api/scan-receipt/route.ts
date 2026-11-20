@@ -393,44 +393,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'ไม่พบไฟล์รูปภาพใบเสร็จ' }, { status: 400 });
     }
 
-    const apiKey =
-      clientApiKey.trim() ||
+    const serverApiKey =
       process.env.GEMINI_API_KEY ||
       process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
       '';
+
+    const clientKey = clientApiKey.trim();
+    // Prioritize keys: if client provided a key, try it; then fallback to server key if different
+    const candidateKeys = [clientKey, serverApiKey].filter(
+      (k, idx, arr): k is string => Boolean(k) && arr.indexOf(k) === idx
+    );
 
     const buffer = await file.arrayBuffer();
     const base64Data = Buffer.from(buffer).toString('base64');
     const mimeType = file.type || 'image/jpeg';
 
     // 1. ถ้ามี Gemini API Key ให้ใช้ Gemini Vision AI พร้อม Intelligent Semantic Prompting
-    if (apiKey) {
+    if (candidateKeys.length > 0) {
+      // โมเดลที่พร้อมให้บริการจริงในปัจจุบัน (จัดลำดับตามความเร็วและโควตา: flash-lite -> flash-latest -> 3.8-flash)
       const modelsToTry = [
-        'gemini-2.5-flash',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
-        'gemini-1.5-flash-8b',
-        'gemini-3.5-flash',
-        'gemini-3.5-flash-lite',
-        'gemini-3.7-flash',
+        'gemini-flash-lite-latest',
+        'gemini-flash-latest',
+        'gemini-3.8-flash',
       ];
       let lastGeminiErr = '';
 
-      for (const model of modelsToTry) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 18000);
+      for (const currentKey of candidateKeys) {
+        for (const model of modelsToTry) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000);
 
-          const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': apiKey,
-              },
-              signal: controller.signal,
-              body: JSON.stringify({
+            const geminiRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-goog-api-key': currentKey,
+                },
+                signal: controller.signal,
+                body: JSON.stringify({
                 contents: [
                   {
                     parts: [
@@ -525,58 +528,59 @@ export async function POST(req: NextRequest) {
           lastGeminiErr = mErr instanceof Error ? mErr.message : String(mErr);
         }
       }
-
-      console.warn('All Gemini models attempted, error:', lastGeminiErr);
     }
 
-    // 2. Fallback: OCR.space Free API (Thai OCR)
-    try {
-      const ocrFormData = new FormData();
-      ocrFormData.append('base64Image', `data:${mimeType};base64,${base64Data}`);
-      ocrFormData.append('language', 'tha');
-      ocrFormData.append('isOverlayRequired', 'false');
-      ocrFormData.append('filetype', 'JPG');
-      ocrFormData.append('detectOrientation', 'true');
-      ocrFormData.append('scale', 'true');
-      ocrFormData.append('OCREngine', '2');
+    console.warn('All Gemini models attempted, error:', lastGeminiErr);
+  }
 
-      const ocrRes = await fetch('https://api.ocr.space/parse/image', {
-        method: 'POST',
-        headers: {
-          apikey: 'K88796489488957',
-        },
-        body: ocrFormData,
-      });
+  // 2. Fallback: OCR.space Free API (Thai OCR)
+  try {
+    const ocrFormData = new FormData();
+    ocrFormData.append('base64Image', `data:${mimeType};base64,${base64Data}`);
+    ocrFormData.append('language', 'tha');
+    ocrFormData.append('isOverlayRequired', 'false');
+    ocrFormData.append('filetype', 'JPG');
+    ocrFormData.append('detectOrientation', 'true');
+    ocrFormData.append('scale', 'true');
+    ocrFormData.append('OCREngine', '2');
 
-      if (ocrRes.ok) {
-        const ocrData = await ocrRes.json();
-        const parsedResults = ocrData.ParsedResults?.[0]?.ParsedText || '';
-        if (parsedResults) {
-          const items = parseThaiReceiptText(parsedResults);
-          if (items.length > 0) {
-            return NextResponse.json({
-              success: true,
-              engine: 'ocr_space',
-              items,
-              raw_text: parsedResults,
-            });
-          }
+    const ocrRes = await fetch('https://api.ocr.space/parse/image', {
+      method: 'POST',
+      headers: {
+        apikey: 'K88796489488957',
+      },
+      body: ocrFormData,
+    });
+
+    if (ocrRes.ok) {
+      const ocrData = await ocrRes.json();
+      const parsedResults = ocrData.ParsedResults?.[0]?.ParsedText || '';
+      if (parsedResults) {
+        const items = parseThaiReceiptText(parsedResults);
+        if (items.length > 0) {
+          return NextResponse.json({
+            success: true,
+            engine: 'ocr_space',
+            items,
+            raw_text: parsedResults,
+          });
         }
       }
-    } catch (ocrErr) {
-      console.warn('OCR.space failed:', ocrErr);
     }
+  } catch (ocrErr) {
+    console.warn('OCR.space failed:', ocrErr);
+  }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: apiKey
-          ? 'AI ไม่สามารถอ่านตัวหนังสือจากภาพใบเสร็จได้ชัดเจน กรุณาถ่ายภาพใหม่ให้ตรงและคมชัดขึ้น หรือพิมพ์เพิ่มรายการเอง'
-          : 'ต้องการ Google Gemini API Key เพื่อเปิดใช้งาน AI Vision สแกนใบเสร็จไทยจริง (รับฟรีใน 10 วินาที)',
-        needApiKey: !apiKey,
-      },
-      { status: 422 }
-    );
+  return NextResponse.json(
+    {
+      success: false,
+      error: candidateKeys.length > 0
+        ? 'AI ไม่สามารถอ่านตัวหนังสือจากภาพใบเสร็จได้ชัดเจน กรุณาถ่ายภาพใหม่ให้ตรงและคมชัดขึ้น หรือพิมพ์เพิ่มรายการเอง'
+        : 'ต้องการ Google Gemini API Key เพื่อเปิดใช้งาน AI Vision สแกนใบเสร็จไทยจริง (รับฟรีใน 10 วินาที)',
+      needApiKey: candidateKeys.length === 0,
+    },
+    { status: 422 }
+  );
   } catch (error: unknown) {
     console.error('Scan receipt API error:', error);
     return NextResponse.json(

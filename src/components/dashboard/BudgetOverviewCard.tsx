@@ -93,38 +93,50 @@ export function BudgetOverviewCard({
           </button>
         </div>
 
-        {/* 3 Core Numbers Row: เรียบง่าย ไม่ซ้ำซ้อน ชัดเจน */}
-        <div className="grid grid-cols-3 gap-2.5 sm:gap-4 p-4 rounded-2xl bg-surface-container-low border border-border/70 text-center sm:text-left">
-          {/* 1. งบประมาณที่ตั้งไว้ */}
-          <div className="flex flex-col">
-            <span className="text-[11px] font-medium text-muted">งบประมาณทั้งหมด</span>
-            <span className="font-heading font-extrabold text-lg sm:text-2xl text-foreground mt-0.5">
-              ฿{budget.toLocaleString()}
-            </span>
-          </div>
+        {/* 3 Core Numbers: จัดวางสมดุลในแนวระนาบเดียวกันทั้ง 3 คอลัมน์ */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-surface-container-low border border-border/70">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
+            {/* แถวที่ 1: หัวข้อทั้ง 3 คอลัมน์ (ความสูงเท่ากัน ยึดแนวระนาบเดียวกัน) */}
+            <div className="flex items-end justify-center min-h-[30px] sm:min-h-[24px] pb-1 px-0.5">
+              <span className="text-[11px] sm:text-xs font-medium text-muted leading-tight">
+                งบประมาณทั้งหมด
+              </span>
+            </div>
+            <div className="flex items-end justify-center min-h-[30px] sm:min-h-[24px] pb-1 px-0.5">
+              <span className="text-[11px] sm:text-xs font-medium text-muted leading-tight">
+                ใช้จ่ายไปแล้ว
+              </span>
+            </div>
+            <div className="flex items-end justify-center min-h-[30px] sm:min-h-[24px] pb-1 px-0.5">
+              <span className="text-[11px] sm:text-xs font-medium text-muted leading-tight">
+                คงเหลือ
+              </span>
+            </div>
 
-          {/* 2. ใช้จ่ายไปแล้ว */}
-          <div className="flex flex-col">
-            <span className="text-[11px] font-medium text-muted">ใช้จ่ายไปแล้ว</span>
-            <span className="font-heading font-extrabold text-lg sm:text-2xl text-foreground mt-0.5">
-              ฿{totalSpent.toLocaleString()}
-            </span>
-          </div>
-
-          {/* 3. คงเหลือ */}
-          <div className="flex flex-col">
-            <span className="text-[11px] font-medium text-muted">คงเหลือ</span>
-            <span
-              className={`font-heading font-extrabold text-lg sm:text-2xl mt-0.5 ${
-                isOverBudget
-                  ? 'text-rose-500'
-                  : isNearLimit
-                  ? 'text-amber-500'
-                  : 'text-emerald-600 dark:text-emerald-400'
-              }`}
-            >
-              ฿{remaining.toLocaleString()}
-            </span>
+            {/* แถวที่ 2: ตัวเลขทั้ง 3 คอลัมน์ (อยู่บนเส้นบรรทัดและระนาบเดียวกัน 100% ขนาดตัวเลขเท่ากัน) */}
+            <div className="flex items-center justify-center min-w-0 px-0.5">
+              <span className="font-heading font-extrabold text-base sm:text-xl text-foreground truncate tracking-tight">
+                ฿{budget.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex items-center justify-center min-w-0 px-0.5">
+              <span className="font-heading font-extrabold text-base sm:text-xl text-foreground truncate tracking-tight">
+                ฿{totalSpent.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex items-center justify-center min-w-0 px-0.5">
+              <span
+                className={`font-heading font-extrabold text-base sm:text-xl truncate tracking-tight ${
+                  isOverBudget
+                    ? 'text-rose-500'
+                    : isNearLimit
+                    ? 'text-amber-500'
+                    : 'text-emerald-500 dark:text-emerald-400 font-black'
+                }`}
+              >
+                ฿{remaining.toLocaleString()}
+              </span>
+            </div>
           </div>
         </div>
 
