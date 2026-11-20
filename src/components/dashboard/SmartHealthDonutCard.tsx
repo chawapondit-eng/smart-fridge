@@ -58,7 +58,7 @@ export function SmartHealthDonutCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-heading font-bold text-base sm:text-lg text-foreground">
-            ความสดใหม่ของวัตถุดิบ (Smart Health)
+            ความสดใหม่ของวัตถุดิบ
           </h2>
           <p className="text-xs text-muted mt-0.5">
             ภาพรวมความสดใหม่และวันหมดอายุของวัตถุดิบทั้งหมดในบ้าน

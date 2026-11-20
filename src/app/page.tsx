@@ -677,13 +677,6 @@ export default function DashboardPage() {
             <h2 className="font-heading text-base sm:text-lg font-bold text-foreground">
               กิจกรรมล่าสุดในบ้าน
             </h2>
-            <Link
-              href="/activities"
-              className="text-xs font-bold text-primary-600 hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <span>ซิงค์เรียลไทม์</span>
-              <span>⚡</span>
-            </Link>
           </div>
 
           <div className="p-4 sm:p-5 rounded-3xl bg-surface-container-lowest border border-border divide-y divide-border/60 shadow-xs">

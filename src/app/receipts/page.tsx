@@ -6,6 +6,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { useHousehold } from '@/contexts/HouseholdContext';
 import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
+import { compressImage } from '@/lib/imageCompression';
 import {
   Camera,
   FolderOpen,
@@ -169,16 +170,30 @@ function ReceiptScannerContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. จัดการเลือกไฟล์ภาพ
-  function handleFileSelect(file: File) {
+  // 1. จัดการเลือกไฟล์ภาพ (พร้อมบีบอัดภาพถ่ายกล้องมือถืออัตโนมัติ ป้องกัน HTTP 413 Payload Too Large)
+  async function handleFileSelect(file: File) {
     if (!file.type.startsWith('image/')) {
       toast.error('กรุณาเลือกไฟล์รูปภาพเท่านั้น');
       return;
     }
-    setImageFile(file);
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    scanImageFile(file);
+
+    try {
+      // บีบอัดและปรับขนาดรูปภาพให้อยู่ในขนาดที่เหมาะสมสำหรับ OCR (~300-600KB)
+      const compressed = await compressImage(file, {
+        maxWidth: 1600,
+        maxHeight: 2000,
+        quality: 0.85,
+      });
+      setImageFile(compressed.file);
+      setPreviewUrl(compressed.dataUrl);
+      scanImageFile(compressed.file);
+    } catch {
+      // Fallback หากอุปกรณ์ไม่รองรับการบีบอัด ให้ใช้ไฟล์เดิม
+      setImageFile(file);
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+      scanImageFile(file);
+    }
   }
 
   // 2. เรียก API Gemini AI Vision เพื่อดึงรายการอาหาร

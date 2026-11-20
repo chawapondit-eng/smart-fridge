@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useHousehold } from '@/contexts/HouseholdContext';
 import toast from 'react-hot-toast';
 import { X, Plus, Refrigerator, Calendar, Bell, Upload, Lock } from 'lucide-react';
+import { compressImage } from '@/lib/imageCompression';
 import { getAutoEmoji, FOOD_EMOJIS } from './EditProductModal';
 import {
   addDaysFromBangkokToday,
@@ -81,22 +82,30 @@ export function AddProductModal({
     }
   }
 
-  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('ขนาดรูปภาพต้องไม่เกิน 2MB');
-      return;
+
+    try {
+      // บีบอัดและปรับขนาดรูปภาพอัตโนมัติ รองรับภาพจากกล้องมือถือจริงขนาดใหญ่
+      const compressed = await compressImage(file, {
+        maxWidth: 800,
+        maxHeight: 800,
+        quality: 0.82,
+      });
+      setImageUrl(compressed.dataUrl);
+      toast.success('เลือกรูปวัตถุดิบเรียบร้อย');
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev.target?.result as string;
+        if (result) {
+          setImageUrl(result);
+          toast.success('เลือกรูปวัตถุดิบเรียบร้อย');
+        }
+      };
+      reader.readAsDataURL(file);
     }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const result = ev.target?.result as string;
-      if (result) {
-        setImageUrl(result);
-        toast.success('เลือกรูปวัตถุดิบเรียบร้อย');
-      }
-    };
-    reader.readAsDataURL(file);
   }
 
   const calculatedDaysLeft = getDaysUntilExpiry(expiryDate);
@@ -355,7 +364,7 @@ export function AddProductModal({
                   />
                 </label>
                 <p className="text-[11px] text-muted">
-                  รองรับไฟล์ภาพ JPG, PNG (แนะนำขนาดไม่เกิน 2MB)
+                  รองรับภาพถ่ายจากกล้องมือถือจริง และไฟล์ภาพ JPG, PNG (บีบอัดอัตโนมัติ)
                 </p>
               </div>
             </div>

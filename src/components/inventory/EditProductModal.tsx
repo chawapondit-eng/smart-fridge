@@ -6,6 +6,7 @@ import { useHousehold } from '@/contexts/HouseholdContext';
 import { X, Edit2, Upload, Calendar, AlertCircle, Lock } from 'lucide-react';
 import type { Item, ItemBatch } from '@/types/database';
 import toast from 'react-hot-toast';
+import { compressImage } from '@/lib/imageCompression';
 import {
   normalizeDateString,
   addDaysFromBangkokToday,
@@ -93,25 +94,30 @@ export function EditProductModal({
 
   if (!isOpen || !item) return null;
 
-  // จัดการอัปโหลดรูปภาพจากอุปกรณ์
-  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  // จัดการอัปโหลดรูปภาพจากอุปกรณ์ (พร้อมบีบอัดอัตโนมัติ รองรับภาพจากกล้องมือถือ)
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('ขนาดรูปภาพต้องไม่เกิน 2MB');
-      return;
+    try {
+      const compressed = await compressImage(file, {
+        maxWidth: 800,
+        maxHeight: 800,
+        quality: 0.82,
+      });
+      setImageUrl(compressed.dataUrl);
+      toast.success('เลือกรูปภาพเรียบร้อย');
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        const result = uploadEvent.target?.result as string;
+        if (result) {
+          setImageUrl(result);
+          toast.success('เลือกรูปภาพเรียบร้อย');
+        }
+      };
+      reader.readAsDataURL(file);
     }
-
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      const result = uploadEvent.target?.result as string;
-      if (result) {
-        setImageUrl(result);
-        toast.success('เลือกรูปภาพเรียบร้อย');
-      }
-    };
-    reader.readAsDataURL(file);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -296,7 +302,7 @@ export function EditProductModal({
                   />
                 </label>
                 <p className="text-[11px] text-muted">
-                  รองรับไฟล์ภาพ JPG, PNG (แนะนำขนาดไม่เกิน 2MB)
+                  รองรับภาพถ่ายจากกล้องมือถือจริง และไฟล์ภาพ JPG, PNG (บีบอัดอัตโนมัติ)
                 </p>
               </div>
             </div>
