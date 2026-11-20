@@ -659,7 +659,7 @@ export default function DashboardPage() {
                         className="flex-1 py-2 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition text-center flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer shadow-xs"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>+ เพิ่มของ</span>
+                        <span>เพิ่มของ</span>
                       </button>
                     </div>
                   </div>

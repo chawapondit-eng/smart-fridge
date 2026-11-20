@@ -425,62 +425,6 @@ function FridgesContent() {
   return (
     <MainLayout>
       <div className="flex flex-col w-full pb-12 gap-4 animate-in fade-in duration-300">
-        {/* Compact Header */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex flex-col min-w-0">
-            <h1 className="font-heading text-xl sm:text-2xl font-bold text-foreground truncate">
-              {activeFridgeObj ? `${activeFridgeObj.icon || '❄️'} ${activeFridgeObj.name}` : `ตู้เย็น ${householdTitleName} ❄️`}
-            </h1>
-            <p className="text-xs sm:text-sm text-muted mt-0.5">
-              {currentHousehold?.name || 'ครัวในบ้าน'} •{' '}
-              {urgentCount > 0 ? (
-                <span className="text-tertiary-600 font-bold">
-                  ใกล้หมดอายุ {urgentCount} รายการ
-                </span>
-              ) : (
-                <span className="text-secondary-600 font-bold">
-                  วัตถุดิบคงความสดดีเยี่ยม 🌱
-                </span>
-              )}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            {activeFridgeObj && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingFridge(activeFridgeObj);
-                    setShowAddFridge(true);
-                  }}
-                  className="w-10 h-10 rounded-xl border border-border bg-surface-container-lowest hover:bg-surface-container text-muted hover:text-foreground flex items-center justify-center transition"
-                  title="แก้ไขชื่อตู้เย็นนี้"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeletingFridge(activeFridgeObj)}
-                  className="w-10 h-10 rounded-xl border border-border bg-surface-container-lowest hover:bg-rose-500/10 text-muted hover:text-rose-600 flex items-center justify-center transition"
-                  title="ลบตู้เย็นนี้"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => setShowAddProduct(true)}
-              className="flex items-center justify-center gap-1.5 px-3.5 h-10 rounded-xl bg-gradient-to-tr from-primary-600 to-primary-500 text-white text-xs sm:text-sm font-bold shadow-md shadow-primary-500/25 active:scale-95 transition shrink-0"
-              title="เพิ่มวัตถุดิบ"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span className="hidden xs:inline">เพิ่มของ</span>
-            </button>
-          </div>
-        </div>
-
         {/* Food Diary 7-Day Horizontal Day Strip matching UI.pdf Page 2 */}
         <div className="bg-white dark:bg-card border border-border rounded-[28px] p-4 sm:p-5 shadow-xs">
           <div className="flex items-center justify-between gap-3 mb-3">

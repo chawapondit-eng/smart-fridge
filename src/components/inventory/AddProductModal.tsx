@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useHousehold } from '@/contexts/HouseholdContext';
 import toast from 'react-hot-toast';
-import { X, Plus, Sparkles, Receipt, Refrigerator, Calendar, Bell, Camera, AlertCircle, Lock } from 'lucide-react';
-import { getAutoEmoji } from './EditProductModal';
+import { X, Plus, Refrigerator, Calendar, Bell, Upload, Lock } from 'lucide-react';
+import { getAutoEmoji, FOOD_EMOJIS } from './EditProductModal';
 import {
   addDaysFromBangkokToday,
   getDaysUntilExpiry,
@@ -23,14 +23,6 @@ interface AddProductModalProps {
   defaultFridgeId?: string;
   onSuccess?: () => void;
 }
-
-const COMMON_PRESETS = [
-  { name: 'ไข่ไก่', category: 'อาหาร', unit: 'ฟอง', defaultQty: 10 },
-  { name: 'นมสด', category: 'นม-ผลิตภัณฑ์นม', unit: 'กล่อง', defaultQty: 2 },
-  { name: 'น้ำดื่ม', category: 'เครื่องดื่ม', unit: 'ขวด', defaultQty: 6 },
-  { name: 'ขนมปัง', category: 'อาหาร', unit: 'แถว', defaultQty: 1 },
-  { name: 'เนยสด', category: 'นม-ผลิตภัณฑ์นม', unit: 'ก้อน', defaultQty: 1 },
-];
 
 export function AddProductModal({
   isOpen,
@@ -112,13 +104,6 @@ export function AddProductModal({
   const targetFridge = fridges.find((f) => f.id === (fridgeId || defaultFridgeId || fridges[0]?.id));
 
   if (!isOpen) return null;
-
-  function applyPreset(preset: typeof COMMON_PRESETS[0]) {
-    setName(preset.name);
-    setUnit(preset.unit);
-    setQuantity(String(preset.defaultQty));
-    setImageUrl(getAutoEmoji(preset.name));
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -308,16 +293,16 @@ export function AddProductModal({
           <X className="w-4 h-4" />
         </button>
 
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center shrink-0">
             <Plus className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-foreground">
-              เพิ่มวัตถุดิบลง: {targetFridge ? `${targetFridge.icon || '❄️'} ${targetFridge.name}` : 'ตู้เย็น'}
+            <h3 className="text-lg font-bold tracking-tight text-foreground">
+              เพิ่มวัตถุดิบ
             </h3>
             <p className="text-xs text-muted">
-              บ้าน: {currentHousehold?.name || 'ครัวเรือนของคุณ'} • กรอกข้อมูลของสดเพื่อติดตามวันหมดอายุ
+              {targetFridge ? `${targetFridge.icon || '❄️'} ${targetFridge.name}` : 'จัดเก็บในตู้เย็น'} • {currentHousehold?.name || 'ครัวเรือนของคุณ'}
             </p>
           </div>
         </div>
@@ -335,42 +320,68 @@ export function AddProductModal({
           </div>
         )}
 
-        {/* Quick Receipt Scan Action */}
-        <div className="mb-4">
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              router.push(`/receipts${targetFridge ? `?fridgeId=${targetFridge.id}` : ''}`);
-            }}
-            className="w-full py-2.5 px-4 rounded-xl border border-primary-200 dark:border-primary-900 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98 shadow-xs"
-          >
-            <Receipt className="w-4 h-4 text-primary-600" />
-            <span>🧾 สแกนใบเสร็จนำเข้าตู้เย็นอัตโนมัติ</span>
-          </button>
-        </div>
-
-        {/* Quick Presets */}
-        <div className="mb-5">
-          <div className="flex items-center gap-1.5 text-xs text-muted font-medium mb-2">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>เลือกของยอดนิยม:</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {COMMON_PRESETS.map((p) => (
-              <button
-                key={p.name}
-                type="button"
-                onClick={() => applyPreset(p)}
-                className="px-2.5 py-1 rounded-lg border border-border bg-background hover:border-primary-500 hover:text-primary-600 text-xs text-muted transition"
-              >
-                + {p.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Picture / Emoji Preview & Selection */}
+          <div className="p-4 rounded-xl border border-border bg-muted/5 space-y-3">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
+              รูปภาพ / ไอคอนสินค้า
+            </label>
+
+            <div className="flex items-center gap-4">
+              {/* Image Preview Box */}
+              <div className="w-16 h-16 rounded-2xl border-2 border-primary-500/30 bg-primary-50 dark:bg-primary-950/40 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm relative group">
+                {imageUrl?.startsWith('data:image') || imageUrl?.startsWith('http') ? (
+                  <img
+                    src={imageUrl}
+                    alt={name || 'วัตถุดิบ'}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-3xl">{imageUrl || getAutoEmoji(name || 'สินค้า')}</span>
+                )}
+              </div>
+
+              {/* Upload Button */}
+              <div className="flex-1 space-y-1.5">
+                <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold text-foreground bg-card hover:bg-muted/15 border border-border cursor-pointer transition shadow-xs">
+                  <Upload className="w-3.5 h-3.5 text-primary-600" />
+                  <span>อัปโหลดรูปจริงจากเครื่อง</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                  />
+                </label>
+                <p className="text-[11px] text-muted">
+                  รองรับไฟล์ภาพ JPG, PNG (แนะนำขนาดไม่เกิน 2MB)
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Emoji Picker */}
+            <div className="pt-2">
+              <span className="text-xs text-muted block mb-2 font-medium">
+                หรือเลือกอิโมจิอาหารยอดนิยม:
+              </span>
+              <div className="grid grid-cols-8 sm:grid-cols-10 gap-1.5 max-h-28 overflow-y-auto p-1.5 rounded-xl bg-card border border-border">
+                {FOOD_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => setImageUrl(emoji)}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg hover:bg-muted/20 hover:scale-110 active:scale-95 transition ${
+                      imageUrl === emoji ? 'bg-primary-100 dark:bg-primary-900/50 ring-2 ring-primary-500' : ''
+                    }`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {/* Name */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
@@ -379,36 +390,43 @@ export function AddProductModal({
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="เช่น นมสด Meiji, ไข่ไก่เบอร์ 2"
+              onChange={(e) => {
+                setName(e.target.value);
+                if (!imageUrl || FOOD_EMOJIS.includes(imageUrl)) {
+                  setImageUrl(getAutoEmoji(e.target.value));
+                }
+              }}
+              placeholder="เช่น ไข่ไก่, นมสด, หมูบด..."
               required
-              className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+              className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
             />
           </div>
 
-          {/* Fridge Selector */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
-              เลือกตู้เย็นที่จัดเก็บ
-            </label>
-            <select
-              value={fridgeId || (fridges[0]?.id ?? '')}
-              onChange={(e) => setFridgeId(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
-            >
-              {fridges.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.icon} {f.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Fridge Selector if more than 1 fridge */}
+          {fridges.length > 1 && (
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+                เลือกตู้เย็นที่จัดเก็บ
+              </label>
+              <select
+                value={fridgeId || (fridges[0]?.id ?? '')}
+                onChange={(e) => setFridgeId(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+              >
+                {fridges.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.icon || '❄️'} {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Quantity & Unit */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
-                จำนวน
+                จำนวน <span className="text-rose-500">*</span>
               </label>
               <input
                 type="number"
@@ -417,131 +435,73 @@ export function AddProductModal({
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+                className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
               />
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
                 หน่วยนับ
               </label>
-              <select
+              <input
+                type="text"
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
-              >
-                <option value="ชิ้น">ชิ้น</option>
-                <option value="ขวด">ขวด</option>
-                <option value="กล่อง">กล่อง</option>
-                <option value="แพ็ก">แพ็ก</option>
-                <option value="ฟอง">ฟอง</option>
-                <option value="กิโลกรัม">กิโลกรัม (กก.)</option>
-                <option value="กรัม">กรัม</option>
-                <option value="ถุง">ถุง</option>
-                <option value="กระป๋อง">กระป๋อง</option>
-              </select>
+                placeholder="ฟอง, กล่อง, ชิ้น..."
+                className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+              />
             </div>
           </div>
 
-          {/* Photo Upload (Optional) */}
-          <div className="flex items-center gap-3 p-3 rounded-xl border border-border bg-surface-container-low/60">
-            <div className="w-12 h-12 rounded-xl bg-card border border-border flex items-center justify-center overflow-hidden shrink-0 text-2xl">
-              {imageUrl?.startsWith('data:image') || imageUrl?.startsWith('http') ? (
-                <img src={imageUrl} alt={name || 'วัตถุดิบ'} className="w-full h-full object-cover" />
-              ) : (
-                <span>{imageUrl || getAutoEmoji(name || 'สินค้า')}</span>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card hover:bg-surface-container border border-border text-xs font-semibold text-foreground cursor-pointer transition">
-                <Camera className="w-3.5 h-3.5 text-primary-600" />
-                <span>ถ่ายรูป / เลือกรูปวัตถุดิบ</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handlePhotoUpload}
-                  className="hidden"
-                />
-              </label>
-              <p className="text-[11px] text-muted mt-1">ไม่บังคับ • ระบบเลือกไอคอนให้อัตโนมัติหากไม่อัปโหลด</p>
-            </div>
-          </div>
-
-          {/* Expiry Date & Days Until Expiry (Asia/Bangkok Calendar Date) */}
-          <div className="p-3.5 rounded-2xl border border-border bg-surface-container-low/50 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+          {/* Expiry Date */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-primary-600" />
                 <span>วันหมดอายุ (เวลาไทย)</span>
               </label>
               {expiryDate && (
                 <button
                   type="button"
-                  onClick={() => handleDatePickerChange('')}
+                  onClick={() => setExpiryDate('')}
                   className="text-[11px] text-muted hover:text-rose-500 font-medium"
                 >
                   ล้างวันที่
                 </button>
               )}
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div>
-                <span className="block text-[11px] text-muted mb-1">เลือกวันที่หมดอายุจริง</span>
-                <input
-                  type="date"
-                  value={expiryDate}
-                  onChange={(e) => handleDatePickerChange(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
-                />
-              </div>
-              <div>
-                <span className="block text-[11px] text-muted mb-1">หรือกรอก &quot;หมดอายุในอีก (วัน)&quot;</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="3650"
-                  value={daysUntilInput}
-                  onChange={(e) => handleDaysUntilChange(e.target.value)}
-                  placeholder="เช่น 3, 7, 14"
-                  className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
-                />
-              </div>
-            </div>
-
-            {/* Quick Days Presets */}
+            <input
+              type="date"
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(normalizeDateString(e.target.value) || '')}
+              className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+            />
             <div className="flex flex-wrap items-center gap-1.5">
               {[
                 { label: 'วันนี้', days: 0 },
-                { label: '+1 วัน', days: 1 },
                 { label: '+3 วัน', days: 3 },
                 { label: '+7 วัน', days: 7 },
                 { label: '+14 วัน', days: 14 },
-              ].map((preset) => (
+              ].map((p) => (
                 <button
-                  key={preset.days}
+                  key={p.days}
                   type="button"
-                  onClick={() => handleDaysUntilChange(String(preset.days))}
+                  onClick={() => setExpiryDate(addDaysFromBangkokToday(p.days))}
                   className="px-2.5 py-1 rounded-lg border border-border bg-card hover:border-primary-500 hover:text-primary-600 text-[11px] font-semibold text-muted transition"
                 >
-                  {preset.label}
+                  {p.label}
                 </button>
               ))}
             </div>
-
-            {/* Live Calendar Confirmation */}
             {expiryDate && (
-              <div className="text-xs px-3 py-2 rounded-xl bg-card border border-border/80 flex items-center justify-between gap-2">
-                <span className="text-muted">วันหมดอายุที่บันทึก:</span>
-                <span className="font-bold text-foreground">
-                  {formatThaiDate(expiryDate)} ({formatExpiryLabel(calculatedDaysLeft)})
-                </span>
-              </div>
+              <p className="text-xs text-muted">
+                ตรงกับวันที่ <strong className="text-foreground">{formatThaiDate(expiryDate)}</strong> •{' '}
+                <strong className="text-primary-600">{formatExpiryLabel(getDaysUntilExpiry(expiryDate))}</strong>
+              </p>
             )}
 
-            {/* Separate Reminder Setting (never alters expiry_date) */}
+            {/* Separate Reminder Setting */}
             <div className="pt-2 border-t border-border/60 flex items-center justify-between gap-2">
-              <label className="text-[11px] text-muted flex items-center gap-1.5">
+              <label className="text-xs text-muted flex items-center gap-1.5">
                 <Bell className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                 <span>แจ้งเตือนล่วงหน้าก่อนหมดอายุ</span>
               </label>
@@ -556,7 +516,7 @@ export function AddProductModal({
                   }
                   className="w-14 px-2 py-1 rounded-lg border border-border bg-background text-xs font-bold text-center text-foreground outline-none focus:border-primary-500"
                 />
-                <span className="text-[11px] text-muted">วัน</span>
+                <span className="text-xs text-muted">วัน</span>
               </div>
             </div>
           </div>
@@ -564,14 +524,14 @@ export function AddProductModal({
           {/* Notes */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
-              บันทึกเพิ่มเติม (ไม่บังคับ)
+              โน้ตเพิ่มเติม (ถ้ามี)
             </label>
             <input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="เช่น เปิดขวดแล้ว, ซื้อจากตลาดนัด"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+              placeholder="เช่น ซื้อจาก Tops, เปิดขวดแล้ว..."
+              className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
             />
           </div>
 
@@ -588,28 +548,34 @@ export function AddProductModal({
             </div>
           )}
 
+          {/* Actions */}
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
             <button
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted/10 transition"
+              className="px-4 py-2 rounded-xl text-sm font-medium text-muted hover:text-foreground hover:bg-muted/10 transition"
             >
               ยกเลิก
             </button>
             <button
               type="submit"
               disabled={submitting || !canAddItems}
-              className="px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 shadow-sm shadow-primary-600/20 transition flex items-center gap-2"
+              className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] shadow-sm shadow-primary-600/25 transition disabled:opacity-50 flex items-center gap-2"
             >
               {submitting ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                'กำลังบันทึก...'
               ) : !canAddItems ? (
-                <Lock className="w-4 h-4" />
+                <>
+                  <Lock className="w-4 h-4" />
+                  <span>ไม่มีสิทธิ์เพิ่มสินค้า</span>
+                </>
               ) : (
-                <Plus className="w-4 h-4" />
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>บันทึกสินค้า</span>
+                </>
               )}
-              <span>{!canAddItems ? 'ไม่มีสิทธิ์เพิ่มสินค้า' : 'บันทึกสินค้า'}</span>
             </button>
           </div>
         </form>

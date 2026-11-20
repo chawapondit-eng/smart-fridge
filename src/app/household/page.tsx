@@ -350,27 +350,45 @@ export default function HouseholdPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+          <div className="grid grid-cols-2 gap-3 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => {
                 setJoinCodeInput('');
                 setShowJoinModal(true);
               }}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-medium text-sm text-foreground bg-card hover:bg-muted/10 border border-border shadow-xs transition"
+              className="p-3.5 sm:px-4 sm:py-3 rounded-2xl bg-surface-container-low hover:bg-surface-container border border-border flex flex-col sm:flex-row items-center justify-center text-center sm:text-left gap-2 sm:gap-2.5 transition active:scale-95 cursor-pointer shadow-2xs group"
             >
-              <KeyRound className="w-4 h-4 text-primary-600" />
-              <span>เข้าร่วมด้วยรหัสคำเชิญ</span>
+              <div className="w-9 h-9 rounded-xl bg-primary-100 dark:bg-primary-950/60 text-primary-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <KeyRound className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-heading font-bold text-xs sm:text-sm text-foreground block">
+                  เข้าร่วมด้วยรหัส
+                </span>
+                <span className="text-[10px] text-muted hidden sm:block">
+                  กรอกรหัสคำเชิญ
+                </span>
+              </div>
             </button>
 
             <button
               type="button"
               onClick={generateInvite}
               disabled={generatingCode}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] shadow-sm shadow-primary-600/25 transition"
+              className="p-3.5 sm:px-4 sm:py-3 rounded-2xl bg-surface-container-low hover:bg-surface-container border border-border flex flex-col sm:flex-row items-center justify-center text-center sm:text-left gap-2 sm:gap-2.5 transition active:scale-95 cursor-pointer shadow-2xs group"
             >
-              <UserPlus className="w-4 h-4" />
-              <span>เชิญสมาชิกเข้าบ้าน</span>
+              <div className="w-9 h-9 rounded-xl bg-primary-100 dark:bg-primary-950/60 text-primary-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <UserPlus className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-heading font-bold text-xs sm:text-sm text-foreground block">
+                  เชิญสมาชิกเข้าบ้าน
+                </span>
+                <span className="text-[10px] text-muted hidden sm:block">
+                  สร้างรหัสคำเชิญ
+                </span>
+              </div>
             </button>
           </div>
         </div>

@@ -25,7 +25,7 @@ interface EditProductModalProps {
   onSuccess: () => void;
 }
 
-const FOOD_EMOJIS = [
+export const FOOD_EMOJIS = [
   '🥚', '🥛', '🥩', '🍗', '🐟', '🦐', '🥬', '🥦', '🥕', '🍅',
   '🍎', '🍌', '🍓', '🥑', '🌽', '🍄', '🍞', '🧀', '🧈', '🍚',
   '🥤', '🧃', '☕', '🍺', '🍰', '🧁', '🍦', '🍫', '🍱', '🍕',
