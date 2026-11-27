@@ -534,30 +534,23 @@ export default function ActivitiesPage() {
             </div>
           </div>
 
-          {/* 2 Channel Breakdown Sub-cards: Supermarket vs GrabMart */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-border">
-            <div className="rounded-2xl bg-surface-container-low border border-border/80 p-3.5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center text-lg shrink-0 shadow-[var(--shadow-xs)]">
-                🛒
+          {/* Weekly Receipt Spend Summary */}
+          <div className="pt-4 border-t border-border">
+            <div className="rounded-2xl bg-surface-container-low border border-border/80 p-3.5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center text-lg shrink-0 shadow-[var(--shadow-xs)]">
+                  🛒
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-foreground truncate">ยอดใช้จ่ายจากใบเสร็จสัปดาห์นี้</p>
+                  <p className="text-[11px] text-muted truncate">
+                    บันทึกแล้ว {budgetSummary.receiptCount} ใบเสร็จ
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-medium text-muted truncate">ซื้อหน้าร้าน / ซูเปอร์มาร์เก็ต</p>
-                <p className="font-heading text-lg font-bold text-foreground tabular-nums">
-                  ฿{budgetSummary.supermarketSpent.toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-surface-container-low border border-border/80 p-3.5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center text-lg shrink-0 shadow-[var(--shadow-xs)]">
-                🛵
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-medium text-muted truncate">สั่งออนไลน์ / GrabMart</p>
-                <p className="font-heading text-lg font-bold text-foreground tabular-nums">
-                  ฿{budgetSummary.deliverySpent.toLocaleString()}
-                </p>
-              </div>
+              <p className="font-heading text-lg sm:text-xl font-bold text-foreground tabular-nums shrink-0">
+                ฿{budgetSummary.totalSpent.toLocaleString()}
+              </p>
             </div>
           </div>
         </section>

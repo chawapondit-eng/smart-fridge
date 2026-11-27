@@ -1478,56 +1478,24 @@ function ReceiptScannerContent() {
               </span>
             </div>
 
-            {/* Segmented Bar */}
+            {/* Progress Bar */}
             <div className="h-3 w-full bg-surface-container rounded-full overflow-hidden flex border border-border">
-              {budgetSummary.totalSpent > 0 ? (
-                <>
-                  <div
-                    className="h-full bg-primary-600 rounded-l-full transition-all duration-500"
-                    style={{
-                      width: `${budgetSummary.budget > 0 ? Math.min(100, Math.round((budgetSummary.supermarketSpent / budgetSummary.budget) * 100)) : 0}%`,
-                    }}
-                  />
-                  <div
-                    className="h-full bg-amber-400 transition-all duration-500"
-                    style={{
-                      width: `${budgetSummary.budget > 0 ? Math.min(100, Math.round((budgetSummary.deliverySpent / budgetSummary.budget) * 100)) : 0}%`,
-                    }}
-                  />
-                </>
-              ) : (
-                <div className="h-full bg-surface-container w-full" />
-              )}
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  budgetSummary.isOverBudget ? 'bg-rose-500' : 'bg-primary-600'
+                }`}
+                style={{
+                  width: `${budgetSummary.budget > 0 ? Math.min(100, budgetSummary.percentUsed) : 0}%`,
+                }}
+              />
             </div>
 
             {budgetSummary.totalSpent > 0 ? (
-              <div className="grid grid-cols-2 gap-2 pt-1 text-xs text-foreground">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-primary-500" />
-                  <span>
-                    ซูเปอร์มาร์เก็ต:{' '}
-                    <strong>
-                      ฿{budgetSummary.supermarketSpent.toLocaleString()} (
-                      {budgetSummary.totalSpent > 0
-                        ? Math.round((budgetSummary.supermarketSpent / budgetSummary.totalSpent) * 100)
-                        : 0}
-                      %)
-                    </strong>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                  <span>
-                    เดลิเวอรี/Grab:{' '}
-                    <strong>
-                      ฿{budgetSummary.deliverySpent.toLocaleString()} (
-                      {budgetSummary.totalSpent > 0
-                        ? Math.round((budgetSummary.deliverySpent / budgetSummary.totalSpent) * 100)
-                        : 0}
-                      %)
-                    </strong>
-                  </span>
-                </div>
+              <div className="flex items-center justify-between gap-2 pt-1 text-xs text-muted">
+                <span>
+                  ใช้ไปแล้ว <strong className="text-foreground">{budgetSummary.percentUsed}%</strong> จากงบสัปดาห์นี้
+                </span>
+                <span>บันทึกแล้ว {budgetSummary.receiptCount} ใบเสร็จ</span>
               </div>
             ) : (
               <p className="text-xs text-muted pt-1">
