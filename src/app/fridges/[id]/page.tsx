@@ -322,7 +322,7 @@ function FridgeDetailContent({ fridgeId }: { fridgeId: string }) {
         {/* Actions Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           {/* Search Box */}
-          <div className="relative flex-1 max-w-md">
+          <div className="ds-input relative flex-1 max-w-md shadow-[var(--shadow-xs)]">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted">
               <Search className="w-4 h-4" />
             </div>
@@ -331,22 +331,29 @@ function FridgeDetailContent({ fridgeId }: { fridgeId: string }) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="ค้นหาชื่อวัตถุดิบในตู้นี้..."
-              className="w-full pl-10 pr-4 py-2 rounded-xl border border-border bg-card text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+              className="w-full pl-10 pr-4 py-2 bg-transparent text-sm text-foreground outline-none"
             />
           </div>
 
           {/* Quick Buttons */}
           <div className="flex items-center gap-2 self-start sm:self-auto">
             <button
-              onClick={() => setShowAddProduct(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] shadow-sm shadow-primary-600/25 transition"
+              type="button"
+              onClick={() => {
+                if (!canAddItems) {
+                  toast.error('คุณไม่มีสิทธิ์เพิ่มวัตถุดิบ (สิทธิ์ดูข้อมูลอย่างเดียว กรุณาติดต่อเจ้าของบ้าน)');
+                  return;
+                }
+                setShowAddProduct(true);
+              }}
+              className="ds-btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>เพิ่มวัตถุดิบ</span>
             </button>
             <Link
               href={`/receipts?fridgeId=${fridgeId}`}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-semibold text-xs sm:text-sm text-foreground bg-card hover:bg-muted/10 border border-border transition"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-semibold text-xs sm:text-sm text-foreground bg-card hover:bg-surface-container-low border border-border transition shadow-[var(--shadow-xs)]"
             >
               <Receipt className="w-4 h-4 text-primary-600" />
               <span>สแกนใบเสร็จ</span>
@@ -358,20 +365,20 @@ function FridgeDetailContent({ fridgeId }: { fridgeId: string }) {
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
           {[
             { id: 'all', label: `ทั้งหมด (${items.length})`, active: 'bg-foreground text-background border-foreground' },
-            { id: 'soon', label: `🟡 ใกล้หมดอายุ (${soonItemsCount})`, active: 'bg-amber-600 text-white border-amber-600' },
-            { id: 'today', label: `🟠 หมดอายุวันนี้ (${todayItemsCount})`, active: 'bg-orange-600 text-white border-orange-600' },
-            { id: 'expired', label: `🔴 หมดอายุแล้ว (${expiredItemsCount})`, active: 'bg-rose-600 text-white border-rose-600' },
-            { id: 'fresh', label: `🟢 ยังสดใหม่ (${freshItemsCount})`, active: 'bg-emerald-600 text-white border-emerald-600' },
-            { id: 'out', label: `หมดสต็อก (${outItemsCount})`, active: 'bg-slate-600 text-white border-slate-600' },
+            { id: 'soon', label: `ใกล้หมดอายุ (${soonItemsCount})`, active: 'bg-amber-600 text-white border-amber-600' },
+            { id: 'today', label: `หมดอายุวันนี้ (${todayItemsCount})`, active: 'bg-amber-700 text-white border-amber-700' },
+            { id: 'expired', label: `หมดอายุแล้ว (${expiredItemsCount})`, active: 'bg-rose-600 text-white border-rose-600' },
+            { id: 'fresh', label: `ยังสดใหม่ (${freshItemsCount})`, active: 'bg-primary-600 text-white border-primary-600' },
+            { id: 'out', label: `หมดสต็อก (${outItemsCount})`, active: 'bg-muted text-white border-muted' },
           ].map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setSelectedStatus(tab.id as 'all' | 'soon' | 'today' | 'expired' | 'fresh' | 'out')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition border ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition border cursor-pointer ${
                 selectedStatus === tab.id
                   ? tab.active
-                  : 'bg-card border-border text-muted hover:text-foreground'
+                  : 'bg-card border-border text-muted hover:text-foreground hover:bg-surface-container-low'
               }`}
             >
               {tab.label}
@@ -394,7 +401,13 @@ function FridgeDetailContent({ fridgeId }: { fridgeId: string }) {
             action={{
               label: 'เพิ่มสินค้าแรก',
               icon: <Plus className="w-4 h-4" />,
-              onClick: () => setShowAddProduct(true),
+              onClick: () => {
+                if (!canAddItems) {
+                  toast.error('คุณไม่มีสิทธิ์เพิ่มวัตถุดิบ (สิทธิ์ดูข้อมูลอย่างเดียว กรุณาติดต่อเจ้าของบ้าน)');
+                  return;
+                }
+                setShowAddProduct(true);
+              },
             }}
           />
         ) : filteredItems.length === 0 ? (
@@ -411,16 +424,22 @@ function FridgeDetailContent({ fridgeId }: { fridgeId: string }) {
               return (
                 <div
                   key={item.id}
-                  className={`p-3.5 rounded-2xl border bg-card shadow-sm hover:border-primary-500/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                    qty === 0 ? 'opacity-65 border-border/60' : 'border-border'
+                  className={`ds-card p-4 hover:border-primary-400/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                    qty === 0 ? 'opacity-65' : ''
                   }`}
                 >
                   {/* Left: Product Info */}
                   <div
                     className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer group"
-                    onClick={() => setEditingItem(item)}
+                    onClick={() => {
+                      if (!canEditItems) {
+                        toast.error('คุณไม่มีสิทธิ์แก้ไขวัตถุดิบ (สิทธิ์ดูข้อมูลอย่างเดียว)');
+                        return;
+                      }
+                      setEditingItem(item);
+                    }}
                   >
-                    <div className="w-11 h-11 rounded-xl bg-primary-50 dark:bg-primary-950/40 text-primary-600 flex items-center justify-center text-base font-bold flex-shrink-0 shadow-inner overflow-hidden border border-primary-500/15 group-hover:border-primary-500/40 transition">
+                    <div className="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-base font-bold flex-shrink-0 overflow-hidden border border-border group-hover:border-primary-600/35 transition">
                       {item.image_url?.startsWith('data:image') || item.image_url?.startsWith('http') ? (
                         <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
                       ) : (
@@ -497,9 +516,15 @@ function FridgeDetailContent({ fridgeId }: { fridgeId: string }) {
 
                     {/* Edit Item Button */}
                     <button
-                      onClick={() => setEditingItem(item)}
-                      className="p-2 rounded-xl text-muted hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950/30 transition"
-                      title="แก้ไขข้อมูลและรูปภาพสินค้า"
+                      onClick={() => {
+                        if (!canEditItems) {
+                          toast.error('คุณไม่มีสิทธิ์แก้ไขวัตถุดิบ (สิทธิ์ดูข้อมูลอย่างเดียว)');
+                          return;
+                        }
+                        setEditingItem(item);
+                      }}
+                      className="p-2 rounded-xl text-muted hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950/30 transition cursor-pointer"
+                      title="แก้ไขข้อมูลวัตถุดิบ"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>

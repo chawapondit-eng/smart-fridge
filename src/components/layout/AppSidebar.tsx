@@ -38,7 +38,7 @@ export function AppSidebar({ collapsed = false, onToggleCollapse }: AppSidebarPr
 
   return (
     <aside
-      className={`hidden md:flex flex-col border-r border-border bg-white dark:bg-card transition-all duration-300 z-30 shrink-0 sticky top-0 h-screen ${
+      className={`hidden md:flex flex-col border-r border-border bg-card transition-all duration-300 z-30 shrink-0 sticky top-0 h-screen ${
         collapsed ? 'w-20' : 'w-64'
       }`}
     >
@@ -49,15 +49,15 @@ export function AppSidebar({ collapsed = false, onToggleCollapse }: AppSidebarPr
         }`}
       >
         <Link href="/" className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary-600 to-primary-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-primary-500/20">
-            <span className="material-symbols-outlined text-[24px]">kitchen</span>
+          <div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center shrink-0 shadow-[0_2px_8px_-2px_rgba(234,88,12,0.4)]">
+            <span className="material-symbols-outlined text-[22px]">kitchen</span>
           </div>
           {!collapsed && (
             <div className="overflow-hidden">
-              <span className="font-heading font-bold text-lg text-foreground block truncate">
+              <span className="font-heading font-semibold text-lg text-foreground block truncate leading-tight">
                 CheckTuYen
               </span>
-              <span className="text-[11px] text-primary-600 font-semibold block">
+              <span className="text-[11px] text-primary-600 font-medium block">
                 เช็คตู้เย็น • Smart Home
               </span>
             </div>
@@ -68,7 +68,7 @@ export function AppSidebar({ collapsed = false, onToggleCollapse }: AppSidebarPr
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="w-8 h-8 rounded-xl text-muted hover:text-foreground hover:bg-stone-100 dark:hover:bg-surface-container-low flex items-center justify-center transition shrink-0"
+            className="w-8 h-8 rounded-xl text-muted hover:text-foreground hover:bg-surface-container-low flex items-center justify-center transition shrink-0 cursor-pointer"
             title="ย่อแถบเมนู"
             aria-label="ย่อแถบเมนู"
           >
@@ -83,7 +83,7 @@ export function AppSidebar({ collapsed = false, onToggleCollapse }: AppSidebarPr
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="w-10 h-10 rounded-xl text-muted hover:text-primary-600 hover:bg-stone-100 dark:hover:bg-surface-container-low flex items-center justify-center transition"
+            className="w-10 h-10 rounded-xl text-muted hover:text-primary-600 hover:bg-primary-100/60 flex items-center justify-center transition cursor-pointer"
             title="ขยายแถบเมนู"
             aria-label="ขยายแถบเมนู"
           >
@@ -107,27 +107,27 @@ export function AppSidebar({ collapsed = false, onToggleCollapse }: AppSidebarPr
               href={item.href}
               className={`flex items-center ${
                 collapsed ? 'justify-center px-0' : 'justify-between px-3.5'
-              } py-2.5 rounded-2xl text-sm transition-all active:scale-[0.98] ${
+              } py-2.5 rounded-xl text-sm transition-all active:scale-[0.98] ${
                 isActive
-                  ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white font-bold shadow-md shadow-primary-500/20'
-                  : 'text-stone-600 dark:text-on-surface-variant hover:text-foreground hover:bg-stone-100 dark:hover:bg-surface-container-low'
+                  ? 'bg-primary-600 text-white font-semibold shadow-[0_2px_8px_-2px_rgba(234,88,12,0.35)]'
+                  : 'text-muted hover:text-foreground hover:bg-surface-container-low font-medium'
               }`}
               title={collapsed ? item.name : undefined}
             >
               <div className="flex items-center gap-3 min-w-0">
                 <Icon
-                  className={`w-5 h-5 shrink-0 ${
-                    isActive ? 'text-white' : 'text-stone-500 dark:text-on-surface-variant'
+                  className={`w-[18px] h-[18px] shrink-0 ${
+                    isActive ? 'text-white' : 'text-muted'
                   }`}
                 />
                 {!collapsed && <span className="truncate">{item.name}</span>}
               </div>
               {!collapsed && item.badge && (
                 <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
                     isActive
                       ? 'bg-white/20 text-white'
-                      : 'bg-primary-100 text-primary-700'
+                      : 'bg-primary-100 text-primary-700 dark:text-primary-300'
                   }`}
                 >
                   {item.badge}
@@ -138,15 +138,17 @@ export function AppSidebar({ collapsed = false, onToggleCollapse }: AppSidebarPr
         })}
       </nav>
 
-      {/* Eco Zero-Waste Pod matching Image 1 */}
+      {/* Eco Zero-Waste Pod */}
       {!collapsed && (
-        <div className="p-3.5 m-3 rounded-2xl bg-emerald-950/20 dark:bg-surface-container-low border border-emerald-900/30 dark:border-border/60">
-          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-            <span className="material-symbols-outlined text-[18px]">eco</span>
-            <span className="text-xs font-bold font-heading">Zero-Waste Home</span>
+        <div className="p-3.5 m-3 rounded-2xl bg-primary-100/80 dark:bg-surface-container border border-primary-600/15">
+          <div className="flex items-center gap-2 text-primary-700 dark:text-primary-300">
+            <div className="w-6 h-6 rounded-lg bg-primary-600/15 flex items-center justify-center">
+              <Leaf className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+            </div>
+            <span className="text-xs font-semibold font-heading">Zero-Waste Home</span>
           </div>
-          <p className="text-[11px] text-stone-600 dark:text-on-surface-variant mt-1 leading-relaxed">
-            ลดขยะอาหารและประหยัดค่าใช้จ่ายในบ้าน ช่วยลดโลกร้อน 🌱
+          <p className="text-[11px] text-muted mt-1.5 leading-relaxed">
+            ลดขยะอาหารและประหยัดค่าใช้จ่ายในบ้าน ช่วยดูแลโลกอย่างยั่งยืน 🌱
           </p>
         </div>
       )}

@@ -2,13 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   guessSmartUnit,
-  extractUnitFromText,
   validatePriceConsistency,
   classifyProductSemantically,
-  classifyProductWithLearning,
   sanitizeProductName,
   resolveHierarchicalPrice,
-  getEstimatedPriceBenchmark,
   type ProductCategory,
 } from '../src/lib/productClassifier';
 

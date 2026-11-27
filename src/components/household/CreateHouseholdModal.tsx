@@ -26,7 +26,6 @@ export function CreateHouseholdModal({ isOpen }: CreateHouseholdModalProps) {
       if (mode === 'create') {
         const trimmed = householdName.trim();
         if (!trimmed) return;
-        // Auto-detect: ถ้าเผลอนำรหัสคำเชิญมากรอกในช่องชื่อบ้าน ให้เปลี่ยนเป็นการเข้าร่วมบ้านอัตโนมัติ
         if (
           trimmed.toUpperCase().startsWith('#TY-') ||
           trimmed.toUpperCase().startsWith('TY-') ||
@@ -48,13 +47,13 @@ export function CreateHouseholdModal({ isOpen }: CreateHouseholdModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-2xl relative animate-in zoom-in-95 duration-200">
-        <div className="w-12 h-12 rounded-2xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center mb-4 shadow-inner">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-md rounded-[22px] border border-border bg-card p-6 sm:p-8 shadow-[var(--shadow-lg)] relative animate-in zoom-in-95 duration-200">
+        <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-600 dark:text-primary-300 flex items-center justify-center mb-4">
           <Home className="w-6 h-6" />
         </div>
 
-        <h2 className="text-xl font-bold tracking-tight text-foreground">
+        <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">
           {mode === 'create' ? 'สร้างครัวเรือนใหม่ 🏡' : 'เข้าร่วมครัวเรือนด้วยรหัสคำเชิญ 🔑'}
         </h2>
         <p className="text-xs sm:text-sm text-muted mt-1 leading-relaxed">
@@ -64,13 +63,13 @@ export function CreateHouseholdModal({ isOpen }: CreateHouseholdModalProps) {
         </p>
 
         {/* Tab Toggle */}
-        <div className="flex rounded-xl bg-muted/10 p-1 mt-5 border border-border">
+        <div className="flex rounded-xl bg-surface-container p-1 mt-5 border border-border">
           <button
             type="button"
             onClick={() => setMode('create')}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               mode === 'create'
-                ? 'bg-card text-foreground shadow-sm'
+                ? 'bg-card text-foreground shadow-[var(--shadow-xs)]'
                 : 'text-muted hover:text-foreground'
             }`}
           >
@@ -80,9 +79,9 @@ export function CreateHouseholdModal({ isOpen }: CreateHouseholdModalProps) {
           <button
             type="button"
             onClick={() => setMode('join')}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               mode === 'join'
-                ? 'bg-card text-foreground shadow-sm'
+                ? 'bg-card text-foreground shadow-[var(--shadow-xs)]'
                 : 'text-muted hover:text-foreground'
             }`}
           >
@@ -103,7 +102,7 @@ export function CreateHouseholdModal({ isOpen }: CreateHouseholdModalProps) {
                 onChange={(e) => setHouseholdName(e.target.value)}
                 placeholder="เช่น บ้านสุขสันต์, คอนโดสุขุมวิท"
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+                className="ds-input w-full px-3.5 py-2.5 text-sm"
               />
             </div>
           ) : (
@@ -117,7 +116,7 @@ export function CreateHouseholdModal({ isOpen }: CreateHouseholdModalProps) {
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                 placeholder="เช่น HOME-ABCD-1234"
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground uppercase tracking-widest font-mono focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+                className="ds-input w-full px-3.5 py-2.5 text-sm uppercase tracking-widest font-mono"
               />
             </div>
           )}
@@ -125,7 +124,7 @@ export function CreateHouseholdModal({ isOpen }: CreateHouseholdModalProps) {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3 px-4 rounded-xl font-medium text-sm text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-60 shadow-md shadow-primary-600/20 transition flex items-center justify-center gap-2 mt-2"
+            className="ds-btn-primary w-full py-3 px-4 text-sm disabled:opacity-60 flex items-center justify-center gap-2 mt-2 cursor-pointer"
           >
             {submitting ? (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -141,4 +140,3 @@ export function CreateHouseholdModal({ isOpen }: CreateHouseholdModalProps) {
     </div>
   );
 }
-

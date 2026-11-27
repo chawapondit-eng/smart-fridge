@@ -11,7 +11,6 @@ import {
   DollarSign,
   Plus,
   Minus,
-  HelpCircle,
   Tag,
   Scale,
 } from 'lucide-react';
@@ -23,7 +22,7 @@ import {
   type ProductCategory,
   type PriceSource,
 } from '@/lib/productClassifier';
-import { addDaysFromBangkokToday, formatThaiDate } from '@/lib/date';
+import { addDaysFromBangkokToday } from '@/lib/date';
 import { getAutoEmoji } from '@/components/inventory/EditProductModal';
 
 export interface EditableReceiptItem {
@@ -233,26 +232,26 @@ function EditScannedItemModalContent({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-foreground/40 backdrop-blur-sm transition-opacity animate-in fade-in duration-200">
       <div
-        className="w-full sm:max-w-xl max-h-[92vh] sm:max-h-[88vh] overflow-y-auto bg-card rounded-t-3xl sm:rounded-3xl border border-border shadow-2xl flex flex-col p-5 sm:p-6 space-y-4 text-foreground animate-in slide-in-from-bottom sm:zoom-in-95 duration-200"
+        className="w-full sm:max-w-xl max-h-[92vh] sm:max-h-[88vh] overflow-y-auto bg-card rounded-t-[24px] sm:rounded-[22px] border border-border shadow-[var(--shadow-lg)] flex flex-col p-5 sm:p-6 space-y-4 text-foreground animate-in slide-in-from-bottom sm:zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
         aria-labelledby="edit-item-modal-title"
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-border/70">
+        <div className="flex items-center justify-between pb-3.5 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-primary-500/10 border border-primary-500/20 flex items-center justify-center text-2xl shadow-xs">
+            <div className="w-11 h-11 rounded-2xl bg-primary-100 border border-primary-600/20 flex items-center justify-center text-2xl">
               {previewEmoji}
             </div>
             <div>
               <h2
                 id="edit-item-modal-title"
-                className="font-heading font-bold text-base sm:text-lg text-foreground flex items-center gap-2"
+                className="font-heading font-semibold text-base sm:text-lg text-foreground flex items-center gap-2"
               >
                 <span>แก้ไขข้อมูลสินค้า</span>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-500/15 text-primary-600 dark:text-primary-300">
+                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-primary-100 text-primary-700 dark:text-primary-300">
                   AI OCR
                 </span>
               </h2>
@@ -627,7 +626,7 @@ function EditScannedItemModalContent({
           <button
             type="button"
             onClick={handleSave}
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white text-xs sm:text-sm font-bold shadow-md shadow-primary-500/20 flex items-center justify-center gap-1.5 transition active:scale-98"
+            className="ds-btn-primary w-full py-2.5 px-4 text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <Check className="w-4 h-4" />
             <span>บันทึกการแก้ไข</span>

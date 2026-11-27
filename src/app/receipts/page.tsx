@@ -13,7 +13,6 @@ import {
   Receipt,
   Sparkles,
   CheckCircle,
-  X,
   Wallet,
   ZoomIn,
   Plus,
@@ -22,10 +21,6 @@ import {
   AlertTriangle,
   ShieldCheck,
   HelpCircle,
-  Utensils,
-  CookingPot,
-  Sparkle,
-  ArrowRight,
   RotateCcw,
   Calendar,
   Trash2,
@@ -38,12 +33,10 @@ import {
   addDaysFromBangkokToday,
   normalizeDateString,
   formatThaiDate,
-  getBangkokTodayString,
 } from '@/lib/date';
 import {
   classifyProductWithLearning,
   recordUserProductCorrection,
-  guessSmartUnit,
   validatePriceConsistency,
   resolveHierarchicalPrice,
   recordPriceHistory,
@@ -99,7 +92,6 @@ function ReceiptScannerContent() {
 
   const [defaultFridgeId, setDefaultFridgeId] = useState<string>(initialFridgeParam);
   const [existingItems, setExistingItems] = useState<ExistingFridgeItem[]>([]);
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [parsedItems, setParsedItems] = useState<ParsedReceiptItem[]>([]);
@@ -184,12 +176,10 @@ function ReceiptScannerContent() {
         maxHeight: 2000,
         quality: 0.85,
       });
-      setImageFile(compressed.file);
       setPreviewUrl(compressed.dataUrl);
       scanImageFile(compressed.file);
     } catch {
       // Fallback หากอุปกรณ์ไม่รองรับการบีบอัด ให้ใช้ไฟล์เดิม
-      setImageFile(file);
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
       scanImageFile(file);
@@ -344,9 +334,8 @@ function ReceiptScannerContent() {
       return;
     }
     setParsedItems([]);
-    setImageFile(null);
     setPreviewUrl(null);
-    setStoreName('');
+    setStoreName('ซูเปอร์มาร์เก็ต');
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (cameraInputRef.current) cameraInputRef.current.value = '';
   }
@@ -470,16 +459,6 @@ function ReceiptScannerContent() {
     [parsedItems]
   );
 
-  const foodOnlyItems = useMemo(
-    () => parsedItems.filter((i) => i.category === 'food' && i.confidence >= 0.70),
-    [parsedItems]
-  );
-
-  const seasoningOnlyItems = useMemo(
-    () => parsedItems.filter((i) => i.category === 'seasoning' && i.confidence >= 0.70),
-    [parsedItems]
-  );
-
   const nonFoodItems = useMemo(
     () => parsedItems.filter((i) => i.category === 'non_food'),
     [parsedItems]
@@ -526,21 +505,6 @@ function ReceiptScannerContent() {
     );
   }, [foodAndSeasoningItems]);
 
-  const pricedItemsCount = useMemo(() => {
-    return parsedItems.filter(
-      (i) => (i.lineTotal !== null && i.lineTotal > 0) || (i.price !== null && i.price > 0)
-    ).length;
-  }, [parsedItems]);
-
-  const completeItemsCount = useMemo(() => {
-    return parsedItems.filter(
-      (i) =>
-        i.name.trim().length > 0 &&
-        i.unit.trim().length > 0 &&
-        ((i.lineTotal !== null && i.lineTotal > 0) || (i.price !== null && i.price > 0))
-    ).length;
-  }, [parsedItems]);
-
   // 3. บันทึกสินค้าลงในตู้เย็น (เฉพาะรายการอาหารและเครื่องปรุงที่ได้รับการยืนยัน 100%)
   async function handleConfirmAndSave() {
     if (submitting) return;
@@ -584,8 +548,6 @@ function ReceiptScannerContent() {
         .gt('quantity', 0);
 
       const dbPool: ExistingFridgeItem[] = (latestDbItems as ExistingFridgeItem[]) || [];
-      let mergedCount = 0;
-      let insertedCount = 0;
 
       for (const it of validFoodItems) {
         const targetFridge = it.targetFridgeId || fallbackFridgeId;
@@ -623,7 +585,6 @@ function ReceiptScannerContent() {
           }
           existing.quantity = updatedQty;
           finalItemId = existing.id;
-          mergedCount++;
         } else {
           const autoEmoji = getAutoEmoji(cleanName);
           const itemId =
@@ -680,7 +641,6 @@ function ReceiptScannerContent() {
 
           finalItemId = insertedItem?.id || itemId;
           dbPool.push({ id: finalItemId, name: cleanName, fridge_id: targetFridge, quantity: addQty });
-          insertedCount++;
         }
 
         // ถ้าผู้ใช้ระบุวันหมดอายุ บันทึกเข้า item_batches (ถ้าไม่ได้ระบุ จะไม่สร้าง batch วันหมดอายุปลอม)
@@ -732,7 +692,6 @@ function ReceiptScannerContent() {
 
       // ล้างสถานะเพื่อป้องกันการกดบันทึกซ้ำ
       setParsedItems([]);
-      setImageFile(null);
       setPreviewUrl(null);
       await loadBudget();
 
@@ -751,56 +710,58 @@ function ReceiptScannerContent() {
   return (
     <MainLayout>
       <div className="flex flex-col w-full pb-12 gap-5 animate-in fade-in duration-300">
-        {/* Primary Element: Receipt Scan & Upload Zone */}
-        <div className="bg-white dark:bg-card rounded-3xl p-5 sm:p-7 shadow-xs border border-border flex flex-col items-center text-center relative overflow-hidden">
-          <div className="w-full flex flex-wrap items-center justify-between gap-2 pb-4 mb-4 border-b border-border/60 text-left">
-            <div className="flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-primary-600" />
-              <h1 className="font-heading text-lg sm:text-xl font-bold text-foreground">
-                สแกนใบเสร็จอัจฉริยะ (Smart OCR)
+        {/* Primary Element: Receipt Scan & Upload Zone (PDF Page 3 — Warm Orange) */}
+        <div className="ds-card p-5 sm:p-8 flex flex-col gap-5 relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div className="space-y-2 max-w-xl">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-100 text-primary-700 dark:text-primary-200 text-xs font-semibold border border-primary-200">
+                  <Sparkles className="w-3.5 h-3.5 text-primary-600" />
+                  <span>สแกนใบเสร็จอัจฉริยะ</span>
+                </span>
+                {fridges.length > 0 && (
+                  <div className="inline-flex items-center gap-1.5 bg-surface-container-low border border-border rounded-full px-3 py-1 text-xs">
+                    <Refrigerator className="w-3.5 h-3.5 text-primary-600 shrink-0" />
+                    <span className="text-muted">ลงตู้:</span>
+                    <select
+                      value={defaultFridgeId || fridges[0]?.id || ''}
+                      onChange={(e) => handleChangeDefaultFridge(e.target.value)}
+                      aria-label="เลือกตู้เย็นปลายทาง"
+                      className="bg-transparent font-semibold text-foreground outline-none cursor-pointer"
+                    >
+                      {fridges.map((f) => (
+                        <option key={f.id} value={f.id} className="bg-card text-foreground">
+                          {f.icon || '❄️'} {f.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <h1 className="font-heading text-xl sm:text-2xl font-bold text-foreground">
+                สแกนใบเสร็จ &amp; สลิปออนไลน์
               </h1>
+              <p className="text-xs sm:text-sm text-muted leading-relaxed">
+                ถ่ายภาพหรืออัปโหลดใบเสร็จ ระบบจะดึงรายการ จำนวน ราคา และแยกหมวดให้อัตโนมัติ
+              </p>
             </div>
 
-            {fridges.length > 0 && (
-              <div className="flex items-center gap-2 bg-surface-container-low border border-border rounded-xl px-3 py-1.5 text-xs">
-                <Refrigerator className="w-3.5 h-3.5 text-primary-600 shrink-0" />
-                <span className="text-muted">บันทึกลงตู้:</span>
-                <select
-                  value={defaultFridgeId || fridges[0]?.id || ''}
-                  onChange={(e) => handleChangeDefaultFridge(e.target.value)}
-                  aria-label="เลือกตู้เย็นปลายทาง"
-                  className="bg-transparent font-bold text-foreground outline-none cursor-pointer"
-                >
-                  {fridges.map((f) => (
-                    <option key={f.id} value={f.id} className="bg-card text-foreground">
-                      {f.icon || '❄️'} {f.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-primary-50 dark:bg-primary-100/15 border border-primary-200 items-center justify-center shrink-0 relative">
+              <Receipt className="w-8 h-8 text-primary-600" />
+              <span className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-amber-400 text-white text-xs font-bold flex items-center justify-center shadow-xs">
+                ✦
+              </span>
+            </div>
           </div>
 
-          <div className="relative w-16 h-16 rounded-2xl bg-primary-500/10 border border-primary-500/25 flex items-center justify-center mb-3">
-            <span className="material-symbols-outlined text-primary-600 text-[34px]">
-              document_scanner
-            </span>
-          </div>
-
-          <h2 className="font-heading font-semibold text-base sm:text-lg text-foreground mb-1">
-            ถ่ายภาพหรืออัปโหลดสลิปใบเสร็จ
-          </h2>
-          <p className="text-xs text-muted max-w-sm mb-4">
-            AI จะคัดแยก <strong className="text-primary-600">อาหารและเครื่องปรุง</strong> เข้าตู้เย็น และแยก <strong className="text-slate-600 dark:text-slate-300">ของใช้ในบ้าน</strong> ออกอัตโนมัติ
-          </p>
-
-          {/* Action Buttons */}
-          <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
+          {/* 2 Equal Action CTA Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
             <button
               type="button"
               disabled={scanning}
               onClick={() => cameraInputRef.current?.click()}
-              className="flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white py-3.5 px-4 rounded-2xl font-bold text-xs sm:text-sm shadow-sm active:scale-[0.98] transition disabled:opacity-60"
+              className="ds-btn-primary flex items-center justify-center gap-2.5 py-3.5 px-5 text-sm shadow-[0_3px_12px_-2px_rgba(234,88,12,0.38)] disabled:opacity-60 cursor-pointer"
             >
               <Camera className="w-4 h-4" />
               <span>ถ่ายภาพใบเสร็จ</span>
@@ -823,10 +784,10 @@ function ReceiptScannerContent() {
               type="button"
               disabled={scanning}
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center justify-center gap-2 bg-surface-container-high hover:bg-surface-container text-on-surface py-3.5 px-4 rounded-2xl font-bold text-xs sm:text-sm shadow-xs active:scale-[0.98] transition border border-border disabled:opacity-60"
+              className="flex items-center justify-center gap-2.5 bg-amber-600 hover:bg-amber-700 text-white py-3.5 px-5 rounded-xl font-heading font-semibold text-sm active:scale-[0.98] transition shadow-[0_3px_12px_-2px_rgba(217,119,6,0.35)] disabled:opacity-60 cursor-pointer"
             >
-              <FolderOpen className="w-4 h-4 text-primary-600" />
-              <span>อัปโหลดรูปภาพ</span>
+              <FolderOpen className="w-4 h-4" />
+              <span>อัปโหลดรูปภาพสลิป / ใบเสร็จ</span>
             </button>
             <input
               type="file"
@@ -842,8 +803,26 @@ function ReceiptScannerContent() {
             />
           </div>
 
+          {/* Clickable Dashed Upload Zone matching PDF Page 3 */}
+          <button
+            type="button"
+            disabled={scanning}
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full rounded-2xl border-2 border-dashed border-border hover:border-primary-400 bg-surface-container-low/70 hover:bg-primary-50/35 dark:hover:bg-primary-100/10 p-7 sm:p-9 text-center transition cursor-pointer disabled:opacity-60"
+          >
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="flex items-center gap-2 font-heading font-semibold text-sm sm:text-base text-foreground">
+                <span className="text-lg">📷</span>
+                <span>แตะเพื่อเลือกรูปใบเสร็จจากเครื่อง</span>
+              </div>
+              <p className="text-xs text-muted">
+                รองรับไฟล์ภาพ JPG, PNG • ตรวจสอบและแก้ไขรายการได้ก่อนบันทึก
+              </p>
+            </div>
+          </button>
+
           {scanning && (
-            <div className="mt-4 flex items-center gap-2 px-4 py-2 rounded-full bg-primary-500/15 border border-primary-500/30 text-primary-600 dark:text-primary-300 text-xs font-bold animate-pulse">
+            <div className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-2xl bg-primary-100 border border-primary-600/20 text-primary-700 dark:text-primary-200 text-xs font-semibold animate-pulse">
               <div className="w-4 h-4 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
               <span>AI กำลังวิเคราะห์ใบเสร็จและคัดแยกหมวดหมู่สินค้า...</span>
             </div>
@@ -852,34 +831,34 @@ function ReceiptScannerContent() {
 
         {/* OCR Verification & Classification Panel */}
         {parsedItems.length > 0 && (
-          <div className="bg-white dark:bg-card rounded-3xl p-4 sm:p-6 shadow-xs border border-border space-y-4">
-            {/* Scanned Result Header (Section 5) */}
-            <div className="bg-surface-container-low p-4 sm:p-5 rounded-2xl border border-border/70 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="ds-card p-4 sm:p-6 space-y-4">
+            {/* Scanned Result Header */}
+            <div className="bg-surface-container-low p-4 sm:p-5 rounded-2xl border border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-start sm:items-center gap-3.5 min-w-0">
                 {previewUrl ? (
                   <div
                     onClick={() => setShowZoomModal(true)}
-                    className="w-14 h-16 sm:w-16 sm:h-20 rounded-2xl overflow-hidden shrink-0 relative bg-surface-container cursor-pointer border-2 border-primary-500/40 hover:border-primary-500 transition group shadow-xs"
+                    className="w-14 h-16 sm:w-16 sm:h-20 rounded-2xl overflow-hidden shrink-0 relative bg-surface-container cursor-pointer border-2 border-primary-600/35 hover:border-primary-600 transition group"
                     title="คลิกเพื่อดูภาพใบเสร็จขยายใหญ่"
                   >
                     <img src={previewUrl} alt="ใบเสร็จ" className="w-full h-full object-cover group-hover:scale-105 transition" />
-                    <div className="absolute inset-0 bg-primary-950/20 group-hover:bg-primary-950/40 flex items-center justify-center transition">
+                    <div className="absolute inset-0 bg-foreground/20 group-hover:bg-foreground/35 flex items-center justify-center transition">
                       <ZoomIn className="w-4 h-4 text-white drop-shadow" />
                     </div>
                   </div>
                 ) : (
-                  <div className="w-14 h-16 rounded-2xl bg-primary-500/10 border border-primary-500/25 flex items-center justify-center text-primary-600 shrink-0">
+                  <div className="w-14 h-16 rounded-2xl bg-primary-100 border border-primary-600/20 flex items-center justify-center text-primary-600 shrink-0">
                     <Receipt className="w-7 h-7" />
                   </div>
                 )}
 
                 <div className="flex flex-col min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="font-heading font-bold text-base sm:text-lg text-foreground">
+                    <h2 className="font-heading font-semibold text-base sm:text-lg text-foreground">
                       AI วิเคราะห์ใบเสร็จแล้ว
                     </h2>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary-100 border border-primary-600/20 text-primary-700 dark:text-primary-200 text-[10px] font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary-600 animate-pulse" />
                       วิเคราะห์สมบูรณ์
                     </span>
                   </div>
@@ -888,28 +867,28 @@ function ReceiptScannerContent() {
                   </p>
 
                   <div className="flex items-center gap-2 mt-2 flex-wrap text-[11px]">
-                    <span className="px-2.5 py-1 rounded-full bg-surface-container border border-border/80 font-semibold text-foreground">
+                    <span className="px-2.5 py-1 rounded-full bg-surface-container border border-border font-semibold text-foreground">
                       📦 ตรวจพบ {parsedItems.length} รายการ
                     </span>
-                    <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 font-bold text-emerald-700 dark:text-emerald-300">
+                    <span className="px-2.5 py-1 rounded-full bg-primary-100 border border-primary-600/20 font-semibold text-primary-700 dark:text-primary-200">
                       🥗 พร้อมเพิ่ม {foodAndSeasoningItems.length} รายการ
                     </span>
                     {needsReviewItems.length > 0 ? (
-                      <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 font-bold text-amber-700 dark:text-amber-300">
+                      <span className="px-2.5 py-1 rounded-full bg-amber-500/12 border border-amber-500/25 font-semibold text-amber-800 dark:text-amber-300">
                         ⚠️ ต้องตรวจสอบ {needsReviewItems.length} รายการ
                       </span>
                     ) : (
-                      <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 font-bold text-emerald-700 dark:text-emerald-300">
+                      <span className="px-2.5 py-1 rounded-full bg-primary-100 border border-primary-600/20 font-semibold text-primary-700 dark:text-primary-200">
                         ✅ พร้อมเพิ่มครบถ้วน
                       </span>
                     )}
                     {actualReceiptTotal > 0 && (
-                      <span className="px-2.5 py-1 rounded-full bg-primary-500/10 border border-primary-500/25 font-bold text-primary-600 dark:text-primary-400">
+                      <span className="px-2.5 py-1 rounded-full bg-primary-600/10 border border-primary-600/20 font-semibold text-primary-700 dark:text-primary-300 tabular-nums">
                         ยอดบิล ฿{actualReceiptTotal.toFixed(2)}
                       </span>
                     )}
                     {estimatedTotal > 0 && (
-                      <span className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 font-semibold text-amber-700 dark:text-amber-300">
+                      <span className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 font-semibold text-amber-700 dark:text-amber-300 tabular-nums">
                         💡 ประเมิน ฿{estimatedTotal.toFixed(2)}
                       </span>
                     )}
@@ -917,13 +896,13 @@ function ReceiptScannerContent() {
                 </div>
               </div>
 
-              {/* Header Action Buttons: Zoom & Rescan */}
+              {/* Header Action Buttons */}
               <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
                 {previewUrl && (
                   <button
                     type="button"
                     onClick={() => setShowZoomModal(true)}
-                    className="px-3 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high border border-border text-xs font-bold text-foreground transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                    className="px-3 py-2 rounded-xl bg-card hover:bg-surface-container border border-border text-xs font-semibold text-foreground transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
                     title="ขยายภาพใบเสร็จ"
                   >
                     <ZoomIn className="w-3.5 h-3.5 text-primary-600" />
@@ -933,7 +912,7 @@ function ReceiptScannerContent() {
                 <button
                   type="button"
                   onClick={handleResetScan}
-                  className="px-3 py-2 rounded-xl bg-surface-container hover:bg-red-500/10 border border-border hover:border-red-500/30 text-xs font-bold text-muted hover:text-red-600 transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                  className="px-3 py-2 rounded-xl bg-card hover:bg-rose-500/10 border border-border hover:border-rose-500/30 text-xs font-semibold text-muted hover:text-rose-600 transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
                   title="ยกเลิกผลการสแกนและเริ่มสแกนใหม่"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
@@ -943,18 +922,18 @@ function ReceiptScannerContent() {
             </div>
 
             {/* 3 Classification Tabs */}
-            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-surface-container-low border border-border/60">
+            <div className="grid grid-cols-3 gap-1.5 p-1.5 rounded-2xl bg-surface-container border border-border">
               <button
                 type="button"
                 onClick={() => setActiveTab('food')}
-                className={`py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                className={`py-2 px-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   activeTab === 'food'
-                    ? 'bg-white dark:bg-surface-container shadow-xs text-primary-600'
+                    ? 'bg-card shadow-[var(--shadow-xs)] text-primary-700 dark:text-primary-300'
                     : 'text-muted hover:text-foreground'
                 }`}
               >
-                <span>🥗 อาหาร & เครื่องปรุง</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'food' ? 'bg-primary-500/15 text-primary-700' : 'bg-surface-container text-muted'}`}>
+                <span className="truncate">🥗 อาหาร &amp; เครื่องปรุง</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] tabular-nums ${activeTab === 'food' ? 'bg-primary-100 text-primary-700' : 'bg-surface-container-high text-muted'}`}>
                   {foodAndSeasoningItems.length}
                 </span>
               </button>
@@ -962,14 +941,14 @@ function ReceiptScannerContent() {
               <button
                 type="button"
                 onClick={() => setActiveTab('non_food')}
-                className={`py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                className={`py-2 px-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   activeTab === 'non_food'
-                    ? 'bg-white dark:bg-surface-container shadow-xs text-slate-700 dark:text-slate-200'
+                    ? 'bg-card shadow-[var(--shadow-xs)] text-foreground'
                     : 'text-muted hover:text-foreground'
                 }`}
               >
-                <span>🧼 ของใช้ทั่วไป</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'non_food' ? 'bg-slate-200 dark:bg-slate-700 text-slate-800' : 'bg-surface-container text-muted'}`}>
+                <span className="truncate">🧼 ของใช้ทั่วไป</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] tabular-nums ${activeTab === 'non_food' ? 'bg-surface-container text-foreground' : 'bg-surface-container-high text-muted'}`}>
                   {nonFoodItems.length}
                 </span>
               </button>
@@ -977,14 +956,14 @@ function ReceiptScannerContent() {
               <button
                 type="button"
                 onClick={() => setActiveTab('needs_review')}
-                className={`py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                className={`py-2 px-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   activeTab === 'needs_review'
-                    ? 'bg-white dark:bg-surface-container shadow-xs text-amber-600'
+                    ? 'bg-card shadow-[var(--shadow-xs)] text-amber-700 dark:text-amber-300'
                     : 'text-muted hover:text-foreground'
                 }`}
               >
-                <span>⚠️ ต้องตรวจสอบ</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'needs_review' ? 'bg-amber-100 text-amber-800' : 'bg-surface-container text-muted'}`}>
+                <span className="truncate">⚠️ ต้องตรวจสอบ</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] tabular-nums ${activeTab === 'needs_review' ? 'bg-amber-500/15 text-amber-800' : 'bg-surface-container-high text-muted'}`}>
                   {needsReviewItems.length}
                 </span>
               </button>
@@ -1443,7 +1422,7 @@ function ReceiptScannerContent() {
                 type="button"
                 onClick={handleConfirmAndSave}
                 disabled={submitting || foodAndSeasoningItems.length === 0}
-                className="w-full bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white py-4 rounded-2xl font-heading font-bold text-base shadow-lg shadow-primary-500/25 flex items-center justify-center gap-2.5 active:scale-[0.99] transition disabled:opacity-60 cursor-pointer"
+                className="ds-btn-primary w-full py-4 text-sm sm:text-base flex items-center justify-center gap-2.5 disabled:opacity-60 cursor-pointer"
               >
                 {submitting ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1461,38 +1440,38 @@ function ReceiptScannerContent() {
         )}
 
         {/* Budget Tracking Card */}
-        <div className="bg-white dark:bg-card rounded-3xl p-5 sm:p-6 shadow-xs border border-border space-y-4">
+        <div className="ds-card p-5 sm:p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-2xl bg-primary-100 text-primary-700 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-primary-100 text-primary-600 dark:text-primary-300 flex items-center justify-center">
                 <Wallet className="w-5 h-5" />
               </div>
-              <h3 className="font-heading font-bold text-sm text-foreground">
+              <h3 className="font-heading font-semibold text-sm sm:text-base text-foreground">
                 การติดตามงบอาหารสัปดาห์นี้
               </h3>
             </div>
             <button
               type="button"
               onClick={() => setShowEditBudgetModal(true)}
-              className="flex items-center gap-1 text-xs font-bold text-primary-600 hover:underline px-2.5 py-1 rounded-full bg-primary-50 dark:bg-primary-950/40 border border-primary-200 dark:border-primary-900 transition"
+              className="flex items-center gap-1 text-xs font-semibold text-primary-700 dark:text-primary-200 hover:bg-primary-200/60 px-3 py-1.5 rounded-full bg-primary-100 border border-primary-600/20 transition cursor-pointer"
             >
               <Edit2 className="w-3 h-3" />
               <span>ตั้งค่างบ</span>
             </button>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <div className="flex items-baseline justify-between">
               <div>
-                <span className="font-heading text-xl sm:text-2xl font-bold text-foreground">
+                <span className="font-heading text-xl sm:text-2xl font-bold text-foreground tabular-nums">
                   ฿{budgetSummary.totalSpent.toLocaleString()}
                 </span>
-                <span className="text-xs text-muted font-medium">
+                <span className="text-xs text-muted font-medium tabular-nums">
                   {' '}
                   / ฿{budgetSummary.budget.toLocaleString()}
                 </span>
               </div>
-              <span className="text-xs font-bold text-primary-700 bg-primary-100 dark:bg-primary-900/40 dark:text-primary-300 px-2.5 py-0.5 rounded-full">
+              <span className="text-xs font-semibold text-primary-700 bg-primary-100 dark:text-primary-200 px-3 py-1 rounded-full tabular-nums">
                 {budgetSummary.remaining > 0
                   ? `เหลือ ฿${budgetSummary.remaining.toLocaleString()}`
                   : `เกินงบ ฿${Math.abs(budgetSummary.budget - budgetSummary.totalSpent).toLocaleString()}`}
@@ -1500,11 +1479,11 @@ function ReceiptScannerContent() {
             </div>
 
             {/* Segmented Bar */}
-            <div className="h-3 w-full bg-surface-container rounded-full overflow-hidden flex">
+            <div className="h-3 w-full bg-surface-container rounded-full overflow-hidden flex border border-border">
               {budgetSummary.totalSpent > 0 ? (
                 <>
                   <div
-                    className="h-full bg-primary-500 rounded-l-full transition-all duration-500"
+                    className="h-full bg-primary-600 rounded-l-full transition-all duration-500"
                     style={{
                       width: `${budgetSummary.budget > 0 ? Math.min(100, Math.round((budgetSummary.supermarketSpent / budgetSummary.budget) * 100)) : 0}%`,
                     }}
@@ -1517,7 +1496,7 @@ function ReceiptScannerContent() {
                   />
                 </>
               ) : (
-                <div className="h-full bg-surface-container-high w-full" />
+                <div className="h-full bg-surface-container w-full" />
               )}
             </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useHousehold } from '@/contexts/HouseholdContext';
 import toast from 'react-hot-toast';
@@ -24,14 +24,22 @@ export function QuantityStepper({
   onQuantityChange,
 }: QuantityStepperProps) {
   const supabase = createClient();
-  const { authUser, user, currentHousehold } = useHousehold();
+  const { authUser, user, currentHousehold, canEditItems } = useHousehold();
 
   const [quantity, setQuantity] = useState(initialQuantity);
   const [updating, setUpdating] = useState(false);
 
+  useEffect(() => {
+    setQuantity(initialQuantity);
+  }, [initialQuantity]);
+
   async function adjustQuantity(change: number) {
     if (!authUser?.id) {
       toast.error('กรุณาเข้าสู่ระบบ');
+      return;
+    }
+    if (!canEditItems) {
+      toast.error('คุณไม่มีสิทธิ์แก้ไขจำนวนวัตถุดิบ (สิทธิ์ดูข้อมูลอย่างเดียว)');
       return;
     }
 
@@ -41,14 +49,12 @@ export function QuantityStepper({
       return;
     }
 
-    // Optimistic Update
     const prevQty = quantity;
     setQuantity(targetQty);
     if (onQuantityChange) onQuantityChange(targetQty);
     setUpdating(true);
 
     try {
-      // 1. เรียก Stored Procedure update_item_quantity
       const { data, error } = await supabase.rpc('update_item_quantity', {
         p_item_id: itemId,
         p_change: change,
@@ -56,7 +62,6 @@ export function QuantityStepper({
       });
 
       if (error) {
-        // Fallback: ถ้า Stored Procedure ยังไม่ได้รัน ให้อัปเดตตาราง items ตรงๆ
         const { error: directError } = await supabase
           .from('items')
           .update({
@@ -71,7 +76,6 @@ export function QuantityStepper({
         setQuantity(Number(data[0].new_quantity));
       }
 
-      // 2. บันทึกประวัติกิจกรรม (Activity Log) ใครทำอะไร หยิบออกกี่ชิ้น หรือเติมกี่ชิ้น
       const currentUserName = user?.display_name || authUser?.email?.split('@')[0] || 'สมาชิก';
       const actionType = change > 0 ? 'quantity_increased' : 'quantity_decreased';
       const absAmount = Math.abs(change);
@@ -97,7 +101,6 @@ export function QuantityStepper({
         console.warn('Logging activity warning:', logErr);
       }
 
-      // 3. แจ้งเตือน Toast ชัดเจน
       if (change < 0) {
         toast.success(`หยิบ "${itemName}" ออก ${absAmount} ${unit} (เหลือ ${targetQty} ${unit})`, {
           icon: '👋',
@@ -110,7 +113,6 @@ export function QuantityStepper({
         });
       }
     } catch (err: unknown) {
-      // Rollback optimistic update
       setQuantity(prevQty);
       if (onQuantityChange) onQuantityChange(prevQty);
       const msg = err instanceof Error ? err.message : 'อัปเดตจำนวนไม่สำเร็จ';
@@ -121,22 +123,22 @@ export function QuantityStepper({
   }
 
   return (
-    <div className="inline-flex items-center rounded-xl border border-border bg-card p-1 shadow-sm">
+    <div className="inline-flex items-center rounded-full border border-border bg-surface-container-low p-1 gap-1 shadow-[var(--shadow-xs)] shrink-0">
       <button
         type="button"
         onClick={() => adjustQuantity(-1)}
         disabled={updating || quantity <= 0}
-        className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:text-foreground hover:bg-muted/10 active:scale-95 disabled:opacity-30 disabled:pointer-events-none transition"
+        className="w-7 h-7 rounded-full bg-card border border-border/80 flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-container active:scale-95 disabled:opacity-35 disabled:pointer-events-none transition cursor-pointer"
         title="ลดจำนวน 1"
       >
         <Minus className="w-3.5 h-3.5" />
       </button>
 
-      <div className="min-w-[48px] px-2 text-center">
+      <div className="min-w-[38px] px-1.5 text-center tabular-nums">
         <span className="text-xs font-bold text-foreground">
           {quantity}
         </span>
-        <span className="text-[10px] text-muted ml-0.5">
+        <span className="text-[10px] text-muted ml-0.5 hidden sm:inline">
           {unit}
         </span>
       </div>
@@ -145,10 +147,10 @@ export function QuantityStepper({
         type="button"
         onClick={() => adjustQuantity(1)}
         disabled={updating}
-        className="w-7 h-7 rounded-lg flex items-center justify-center text-primary-600 hover:text-primary-700 hover:bg-primary-50 dark:hover:bg-primary-950/40 active:scale-95 disabled:opacity-30 transition"
+        className="w-7 h-7 rounded-full bg-primary-600 hover:bg-primary-700 text-white flex items-center justify-center shadow-[0_2px_6px_-1px_rgba(234,88,12,0.4)] active:scale-95 disabled:opacity-35 transition cursor-pointer"
         title="เพิ่มจำนวน 1"
       >
-        <Plus className="w-3.5 h-3.5" />
+        <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
       </button>
     </div>
   );

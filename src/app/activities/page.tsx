@@ -6,6 +6,8 @@ import { useHousehold } from '@/contexts/HouseholdContext';
 import { createClient } from '@/lib/supabase/client';
 import { SkeletonRow } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { fetchWeeklyBudgetSummary, type WeeklyBudgetSummary } from '@/lib/budget';
+import { EditBudgetModal } from '@/components/budget/EditBudgetModal';
 import {
   History,
   Plus,
@@ -15,14 +17,12 @@ import {
   UserPlus,
   Receipt,
   Edit,
+  Edit2,
   Clock,
   Calendar,
   CalendarDays,
   Layers,
   Search,
-  Users,
-  ArrowUpRight,
-  ArrowDownRight,
   Filter,
 } from 'lucide-react';
 import type { ActivityLog } from '@/types/database';
@@ -82,6 +82,20 @@ export default function ActivitiesPage() {
 
   const [logs, setLogs] = useState<LogWithUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showEditBudgetModal, setShowEditBudgetModal] = useState(false);
+  const [budgetSummary, setBudgetSummary] = useState<WeeklyBudgetSummary>({
+    budget: 3000,
+    totalSpent: 0,
+    remaining: 3000,
+    percentUsed: 0,
+    receiptCount: 0,
+    supermarketSpent: 0,
+    deliverySpent: 0,
+    isOverBudget: false,
+    isNearLimit: false,
+    overBudgetAmount: 0,
+    history: [],
+  });
 
   // Filters
   const [timeRange, setTimeRange] = useState<TimeRange>('all');
@@ -106,13 +120,20 @@ export default function ActivitiesPage() {
         return;
       }
 
-      // 1. ดึงประวัติกิจกรรม (สูงสุด 200 รายการเพื่อให้ดูย้อนหลัง สัปดาห์/เดือน/ปี ได้ครบถ้วน)
-      const { data: logRows, error } = await supabase
-        .from('activity_logs')
-        .select('*')
-        .eq('household_id', currentHousehold.id)
-        .order('created_at', { ascending: false })
-        .limit(200);
+      // 1. ดึงข้อมูลงบประมาณรายสัปดาห์และประวัติกิจกรรมพร้อมกัน
+      const [summaryRes, logsRes] = await Promise.all([
+        fetchWeeklyBudgetSummary(supabase, currentHousehold.id),
+        supabase
+          .from('activity_logs')
+          .select('*')
+          .eq('household_id', currentHousehold.id)
+          .order('created_at', { ascending: false })
+          .limit(200),
+      ]);
+
+      setBudgetSummary(summaryRes);
+
+      const { data: logRows, error } = logsRes;
 
       if (error) {
         if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
@@ -420,334 +441,358 @@ export default function ActivitiesPage() {
     { id: 'year', label: 'ปีนี้', icon: History, count: rangeCounts.year },
   ];
 
+  const budgetDonutRadius = 44;
+  const budgetDonutCirc = 2 * Math.PI * budgetDonutRadius;
+  const budgetPct = Math.min(100, Math.max(0, budgetSummary.percentUsed));
+  const budgetStrokeDashoffset = budgetDonutCirc - (budgetPct / 100) * budgetDonutCirc;
+
   return (
     <MainLayout>
-      <div className="space-y-6 animate-in fade-in duration-300 pb-12">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2.5">
-              <span>ประวัติการใช้งาน</span>
-              <History className="w-6 h-6 text-primary-600" />
-            </h1>
-            <p className="text-xs sm:text-sm text-muted mt-1">
-              ตรวจสอบว่าใครหยิบอะไรเข้าหรือออกจากตู้เย็น จัดหมวดหมู่ตามช่วงเวลา
-            </p>
-          </div>
-        </div>
+      <div className="space-y-5 animate-in fade-in duration-300 pb-12">
+        {/* 1. Weekly Budget Intelligence Card (PDF Page 5 — Warm Orange) */}
+        <section className="ds-card p-5 sm:p-6 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-7">
+            {/* Warm Orange SVG Circular Donut */}
+            <div className="relative w-28 h-28 shrink-0 self-center sm:self-auto flex items-center justify-center">
+              <svg className="w-28 h-28 -rotate-90" viewBox="0 0 112 112" aria-hidden="true">
+                <circle
+                  cx="56"
+                  cy="56"
+                  r={budgetDonutRadius}
+                  stroke="currentColor"
+                  className="text-surface-container"
+                  strokeWidth="12"
+                  fill="transparent"
+                />
+                <circle
+                  cx="56"
+                  cy="56"
+                  r={budgetDonutRadius}
+                  stroke={budgetSummary.isOverBudget ? '#e11d48' : '#ea580c'}
+                  strokeWidth="12"
+                  strokeLinecap="round"
+                  strokeDasharray={budgetDonutCirc}
+                  strokeDashoffset={budgetStrokeDashoffset}
+                  fill="transparent"
+                  className="transition-all duration-700 ease-out"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className="font-heading text-xl font-bold text-foreground tabular-nums leading-none">
+                  {budgetSummary.percentUsed}%
+                </span>
+                <span className="text-[10px] text-muted font-medium mt-1">ใช้ไปแล้ว</span>
+              </div>
+            </div>
 
-        {/* 1. Time Range Selector Tabs (วัน / สัปดาห์ / เดือน / ปี) */}
-        <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-card border border-border shadow-xs overflow-x-auto scrollbar-none">
-          {timeTabs.map((tab) => {
-            const Icon = tab.icon;
-            const active = timeRange === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setTimeRange(tab.id)}
-                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition whitespace-nowrap active:scale-[0.98] ${
-                  active
-                    ? 'bg-primary-600 text-white shadow-xs shadow-primary-600/30'
-                    : 'text-muted hover:text-foreground hover:bg-muted/10'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
+            {/* Budget Summary Info */}
+            <div className="flex-1 min-w-0 space-y-2.5 text-center sm:text-left">
+              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600">
+                <span>🔥</span>
+                <span>สรุปงบประมาณประจำสัปดาห์</span>
+              </div>
+
+              <div>
+                <h1 className="font-heading text-2xl sm:text-3xl font-bold text-foreground tabular-nums">
+                  {budgetSummary.isOverBudget
+                    ? `เกินงบ ฿${budgetSummary.overBudgetAmount.toLocaleString()}`
+                    : `คงเหลือ ฿${budgetSummary.remaining.toLocaleString()}`}
+                </h1>
+                <p className="text-xs sm:text-sm text-muted mt-0.5">
+                  ใช้จ่ายไปแล้ว ฿{budgetSummary.totalSpent.toLocaleString()} จากวงเงินที่ตั้งไว้ ฿{budgetSummary.budget.toLocaleString()} ต่อสัปดาห์
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-0.5">
                 <span
-                  className={`text-[11px] px-1.5 py-0.2 rounded-full font-bold ${
-                    active
-                      ? 'bg-white/20 text-white'
-                      : 'bg-muted/15 text-muted'
+                  className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
+                    budgetSummary.isOverBudget
+                      ? 'bg-rose-500/12 text-rose-700 dark:text-rose-300'
+                      : budgetSummary.isNearLimit
+                      ? 'bg-amber-500/12 text-amber-700 dark:text-amber-300'
+                      : 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300'
                   }`}
                 >
-                  {tab.count}
+                  <span>
+                    {budgetSummary.isOverBudget
+                      ? '⚠️ ใช้จ่ายเกินวงเงินรายสัปดาห์'
+                      : budgetSummary.isNearLimit
+                      ? '⚡ ใกล้ถึงวงเงินงบประมาณแล้ว'
+                      : '✨ คุมงบได้ดีเยี่ยม ไม่เกินวงเงิน'}
+                  </span>
                 </span>
-              </button>
-            );
-          })}
-        </div>
 
-        {/* 2. Quick Summary Stat Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="p-4 rounded-2xl border border-border bg-card shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted">กิจกรรมในรอบนี้</p>
-              <p className="text-xl sm:text-2xl font-extrabold text-foreground mt-1">
-                {stats.total}
-              </p>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-primary-500/10 text-primary-600 flex items-center justify-center">
-              <History className="w-5 h-5" />
+                <button
+                  type="button"
+                  onClick={() => setShowEditBudgetModal(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-surface-container-low hover:bg-primary-50 border border-border hover:border-primary-300 text-xs font-semibold text-foreground transition cursor-pointer"
+                >
+                  <Edit2 className="w-3 h-3 text-primary-600" />
+                  <span>แก้ไขวงเงินงบ</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl border border-border bg-card shadow-xs flex items-center justify-between">
+          {/* 2 Channel Breakdown Sub-cards: Supermarket vs GrabMart */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-border">
+            <div className="rounded-2xl bg-surface-container-low border border-border/80 p-3.5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center text-lg shrink-0 shadow-[var(--shadow-xs)]">
+                🛒
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium text-muted truncate">ซื้อหน้าร้าน / ซูเปอร์มาร์เก็ต</p>
+                <p className="font-heading text-lg font-bold text-foreground tabular-nums">
+                  ฿{budgetSummary.supermarketSpent.toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-surface-container-low border border-border/80 p-3.5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center text-lg shrink-0 shadow-[var(--shadow-xs)]">
+                🛵
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium text-muted truncate">สั่งออนไลน์ / GrabMart</p>
+                <p className="font-heading text-lg font-bold text-foreground tabular-nums">
+                  ฿{budgetSummary.deliverySpent.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 2. Activity Logs Card (PDF Page 5 — Warm Orange) */}
+        <section className="ds-card p-5 sm:p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-xs font-medium text-muted">เติมของเข้า (+)</p>
-              <p className="text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1">
-                +{stats.inCount}
+              <h2 className="font-heading text-base sm:text-lg font-semibold text-foreground flex items-center gap-2">
+                <span>🧾</span>
+                <span>ประวัติกิจกรรมในบ้าน</span>
+              </h2>
+              <p className="text-xs text-muted mt-0.5">
+                บันทึกอัตโนมัติว่าใครซื้อของเข้าตู้ หรือหยิบอะไรไปใช้ ({stats.total} รายการ)
               </p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-              <ArrowUpRight className="w-5 h-5" />
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              อัปเดตอัตโนมัติ
+            </span>
+          </div>
+
+          {/* Time Range Selector Pills + Search/Action Filter */}
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+              {timeTabs.map((tab) => {
+                const Icon = tab.icon;
+                const active = timeRange === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setTimeRange(tab.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition whitespace-nowrap active:scale-[0.98] cursor-pointer ${
+                      active
+                        ? 'bg-primary-600 text-white shadow-[0_2px_8px_-2px_rgba(234,88,12,0.35)]'
+                        : 'bg-surface-container-low text-muted hover:text-foreground border border-border'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{tab.label}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold tabular-nums ${
+                        active ? 'bg-white/20 text-white' : 'bg-card text-muted'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="ds-input relative flex-1">
+                <Search className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="ค้นหาชื่ออาหาร, สมาชิก, หรือตู้เย็น..."
+                  className="w-full pl-10 pr-8 py-2 bg-transparent text-xs sm:text-sm text-foreground placeholder:text-muted outline-none"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted hover:text-foreground cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-muted shrink-0 hidden sm:block" />
+                <select
+                  value={filterAction}
+                  onChange={(e) => setFilterAction(e.target.value)}
+                  className="ds-input w-full sm:w-auto px-3.5 py-2 text-xs font-medium text-foreground cursor-pointer"
+                >
+                  <option value="all">กิจกรรมทั้งหมด</option>
+                  <option value="quantity">การปรับจำนวน (+ / -)</option>
+                  <option value="item_added">เติมสินค้าเข้า (+)</option>
+                  <option value="item_decreased">หยิบสินค้าออก (-)</option>
+                  <option value="item_removed">ลบสินค้า</option>
+                  <option value="member_joined">สมาชิกเข้าร่วม</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl border border-border bg-card shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted">หยิบของออก (-)</p>
-              <p className="text-xl sm:text-2xl font-extrabold text-amber-600 mt-1">
-                -{stats.outCount}
-              </p>
+          {/* Grouped Timeline Content */}
+          {loading ? (
+            <div className="space-y-3">
+              <SkeletonRow />
+              <SkeletonRow />
+              <SkeletonRow />
             </div>
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
-              <ArrowDownRight className="w-5 h-5" />
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl border border-border bg-card shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted">สมาชิกที่ทำรายการ</p>
-              <p className="text-xl sm:text-2xl font-extrabold text-indigo-600 mt-1">
-                {stats.activeUsers}
-              </p>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center">
-              <Users className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Search and Action Filters Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-2xl border border-border bg-card">
-          {/* Search Box */}
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="ค้นหาชื่ออาหาร, สมาชิก, หรือตู้เย็น..."
-              className="w-full pl-10 pr-8 py-2 rounded-xl border border-border bg-background text-xs sm:text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary-500 transition"
+          ) : groupedLogs.length === 0 ? (
+            <EmptyState
+              icon={<History className="w-7 h-7" />}
+              title="ไม่พบประวัติกิจกรรมในช่วงเวลานี้"
+              description={
+                search || filterAction !== 'all'
+                  ? 'ลองปรับคำค้นหาหรือเปลี่ยนตัวกรองกิจกรรม'
+                  : 'ไม่มีรายการเคลื่อนไหวตามช่วงเวลาที่คุณเลือก'
+              }
             />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted hover:text-foreground"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* Action Filter */}
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-muted shrink-0 hidden sm:block" />
-            <select
-              value={filterAction}
-              onChange={(e) => setFilterAction(e.target.value)}
-              className="w-full sm:w-auto px-3.5 py-2 rounded-xl border border-border bg-background text-xs sm:text-sm font-medium text-foreground focus:outline-none focus:border-primary-500"
-            >
-              <option value="all">กิจกรรมทั้งหมด</option>
-              <option value="quantity">การปรับจำนวน (+ / -)</option>
-              <option value="item_added">เติมสินค้าเข้า (+)</option>
-              <option value="item_decreased">หยิบสินค้าออก (-)</option>
-              <option value="item_removed">ลบสินค้า</option>
-              <option value="member_joined">สมาชิกเข้าร่วม</option>
-            </select>
-          </div>
-        </div>
-
-        {/* 4. Grouped Timeline Content */}
-        {loading ? (
-          <div className="space-y-3">
-            <SkeletonRow />
-            <SkeletonRow />
-            <SkeletonRow />
-          </div>
-        ) : groupedLogs.length === 0 ? (
-          <EmptyState
-            icon={<History className="w-7 h-7" />}
-            title="ไม่พบประวัติกิจกรรมในช่วงเวลานี้"
-            description={
-              search || filterAction !== 'all'
-                ? 'ลองปรับคำค้นหาหรือเปลี่ยนตัวกรองกิจกรรม'
-                : 'ไม่มีรายการเคลื่อนไหวตามช่วงเวลาที่คุณเลือก'
-            }
-          />
-        ) : (
-          <div className="space-y-6">
-            {groupedLogs.map((group) => (
-              <div key={group.key} className="space-y-2.5">
-                {/* Section Header (Day / Group Banner) */}
-                <div className="flex items-center justify-between px-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-primary-500" />
-                    <h2 className="text-sm sm:text-base font-bold text-foreground">
-                      {group.title}
-                    </h2>
-                    <span className="text-xs text-muted font-normal">
-                      • {group.subtitle}
+          ) : (
+            <div className="space-y-5">
+              {groupedLogs.map((group) => (
+                <div key={group.key} className="space-y-2">
+                  {/* Day Group Subtitle */}
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-primary-600" />
+                      <h3 className="font-heading text-xs sm:text-sm font-semibold text-foreground">
+                        {group.title}
+                      </h3>
+                      <span className="text-[11px] text-muted">• {group.subtitle}</span>
+                    </div>
+                    <span className="text-[11px] font-semibold text-muted">
+                      {group.logs.length} รายการ
                     </span>
                   </div>
-                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-muted/15 text-muted">
-                    {group.logs.length} รายการ
-                  </span>
-                </div>
 
-                {/* Day Logs Container */}
-                <div className="rounded-2xl border border-border bg-card p-3 sm:p-5 shadow-xs divide-y divide-border/60">
-                  {group.logs.map((log) => {
-                    const meta = getActionMeta(log.action);
-                    const Icon = meta.icon;
-                    const details = log.details as Record<string, unknown> | null;
-                    const userName =
-                      log.users?.display_name ||
-                      (details?.user_name as string) ||
-                      log.users?.email?.split('@')[0] ||
-                      'สมาชิก';
-                    const itemName =
-                      (details?.item_name as string) || (details?.name as string) || 'สินค้า';
-                    const unit = (details?.unit as string) || 'ชิ้น';
-                    const amount =
-                      details?.amount !== undefined
-                        ? Number(details.amount)
-                        : details?.quantity !== undefined
-                        ? Number(details.quantity)
-                        : undefined;
-                    const change = details?.change as number | undefined;
-                    const newQty =
-                      details?.new_quantity !== undefined ? Number(details.new_quantity) : undefined;
+                  {/* Clean Pill Rows matching PDF Page 5 */}
+                  <div className="space-y-2">
+                    {group.logs.map((log) => {
+                      const details = log.details as Record<string, unknown> | null;
+                      const userName =
+                        log.users?.display_name ||
+                        (details?.user_name as string) ||
+                        log.users?.email?.split('@')[0] ||
+                        'สมาชิก';
+                      const itemName =
+                        (details?.item_name as string) || (details?.name as string) || 'สินค้า';
+                      const unit = (details?.unit as string) || 'ชิ้น';
+                      const amount =
+                        details?.amount !== undefined
+                          ? Number(details.amount)
+                          : details?.quantity !== undefined
+                          ? Number(details.quantity)
+                          : undefined;
+                      const change = details?.change as number | undefined;
+                      const newQty =
+                        details?.new_quantity !== undefined ? Number(details.new_quantity) : undefined;
+                      const fridgeSuffix = log.fridges?.name ? ` (${log.fridges.name})` : '';
 
-                    let actionTitle = '';
-                    let actionBadge: React.ReactNode = null;
+                      let actionTitle = '';
+                      if (log.action === 'item_added') {
+                        const qtyText = amount !== undefined ? ` ${amount} ${unit}` : '';
+                        actionTitle = `เพิ่ม ${itemName}${qtyText} เข้าตู้${fridgeSuffix}`;
+                      } else if (log.action === 'quantity_decreased') {
+                        const absChange =
+                          amount !== undefined ? Math.abs(amount) : change ? Math.abs(Number(change)) : 1;
+                        actionTitle = `หยิบ ${itemName} ${absChange} ${unit}${
+                          newQty !== undefined ? ` (เหลือ ${newQty} ${unit})` : ''
+                        }${fridgeSuffix}`;
+                      } else if (log.action === 'quantity_increased') {
+                        const absChange =
+                          amount !== undefined ? Math.abs(amount) : change ? Math.abs(Number(change)) : 1;
+                        actionTitle = `เติม ${itemName} เพิ่ม ${absChange} ${unit}${fridgeSuffix}`;
+                      } else if (log.action === 'item_removed') {
+                        actionTitle = `ลบรายการ ${itemName} ออกจากตู้${fridgeSuffix}`;
+                      } else if (log.action === 'item_updated') {
+                        actionTitle = `แก้ไขข้อมูล ${itemName}${fridgeSuffix}`;
+                      } else if (log.action === 'fridge_created') {
+                        actionTitle = `สร้างตู้เย็นใหม่ "${details?.name || ''}"`;
+                      } else if (log.action === 'member_joined') {
+                        actionTitle = 'เข้าร่วมครัวเรือน';
+                      } else {
+                        actionTitle = getActionMeta(log.action).title;
+                      }
 
-                    if (log.action === 'item_added') {
-                      const qtyText = amount !== undefined ? `${amount} ${unit}` : '';
-                      actionTitle = `เพิ่ม "${itemName}" ${qtyText ? `จำนวน ${qtyText}` : ''}`;
-                      actionBadge = (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                          +{amount ?? 1} {unit}
-                        </span>
-                      );
-                    } else if (log.action === 'quantity_decreased') {
-                      const absChange =
-                        amount !== undefined ? Math.abs(amount) : change ? Math.abs(Number(change)) : 1;
-                      actionTitle = `หยิบ "${itemName}" ออก ${absChange} ${unit}`;
-                      actionBadge = (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                          -{absChange} {unit}
-                        </span>
-                      );
-                    } else if (log.action === 'quantity_increased') {
-                      const absChange =
-                        amount !== undefined ? Math.abs(amount) : change ? Math.abs(Number(change)) : 1;
-                      actionTitle = `เติม "${itemName}" เพิ่ม ${absChange} ${unit}`;
-                      actionBadge = (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                          +{absChange} {unit}
-                        </span>
-                      );
-                    } else if (log.action === 'item_removed') {
-                      actionTitle = `ลบรายการ "${itemName}" ออกจากตู้เย็น`;
-                      actionBadge = (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-                          ลบสินค้า
-                        </span>
-                      );
-                    } else if (log.action === 'item_updated') {
-                      actionTitle = `แก้ไขข้อมูล "${itemName}"`;
-                    } else if (log.action === 'fridge_created') {
-                      actionTitle = `สร้างตู้เย็นใหม่: "${details?.name || ''}"`;
-                    } else if (log.action === 'member_joined') {
-                      actionTitle = 'เข้าร่วมครัวเรือน';
-                      actionBadge = (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                          สมาชิกใหม่
-                        </span>
-                      );
-                    } else {
-                      actionTitle = meta.title;
-                    }
-
-                    return (
-                      <div
-                        key={log.id}
-                        className="py-3.5 first:pt-0 last:pb-0 flex items-start gap-3.5 transition hover:bg-muted/5 rounded-xl px-1 sm:px-2"
-                      >
-                        {/* Action Icon */}
+                      return (
                         <div
-                          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${meta.bg}`}
+                          key={log.id}
+                          className="rounded-2xl bg-surface-container-low border border-border/70 px-3.5 sm:px-4 py-3 flex items-center justify-between gap-3"
                         >
-                          <Icon className="w-4 h-4" />
-                        </div>
-
-                        {/* Event Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4">
-                            <div className="text-xs sm:text-sm text-foreground flex flex-wrap items-center gap-1.5">
-                              {/* Member Pill */}
-                              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-muted/15 font-bold text-foreground">
-                                <div className="w-4 h-4 rounded-full bg-primary-200 dark:bg-primary-900 text-primary-800 dark:text-primary-200 flex items-center justify-center text-[10px] overflow-hidden">
-                                  {log.users?.avatar_url?.startsWith('data:image') ||
-                                  log.users?.avatar_url?.startsWith('http') ? (
-                                    <img
-                                      src={log.users.avatar_url}
-                                      alt={userName}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : log.users?.avatar_url ? (
-                                    <span>{log.users.avatar_url}</span>
-                                  ) : (
-                                    userName.charAt(0).toUpperCase()
-                                  )}
-                                </div>
-                                <span className="text-xs">{userName}</span>
-                              </div>
-
-                              <span className="font-semibold text-foreground">
-                                {actionTitle}
-                              </span>
-
-                              {actionBadge}
-
-                              {newQty !== undefined &&
-                                (log.action === 'quantity_decreased' ||
-                                  log.action === 'quantity_increased') && (
-                                  <span className="text-xs text-muted font-normal">
-                                    (คงเหลือ {newQty} {unit})
-                                  </span>
-                                )}
-                            </div>
-
-                            {/* Clean Time Stamp */}
-                            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 text-muted">
-                              <span className="text-xs font-semibold text-foreground">
-                                {formatTime(log.created_at)}
-                              </span>
-                              <span className="text-[11px] text-muted">
-                                ({getRelativeTime(log.created_at)})
-                              </span>
-                            </div>
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1 flex-wrap sm:flex-nowrap">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-card border border-border text-xs font-semibold text-foreground shrink-0">
+                              <span>{log.users?.avatar_url && !log.users.avatar_url.startsWith('http') ? log.users.avatar_url : '👤'}</span>
+                              <span>{userName}</span>
+                            </span>
+                            <span className="text-xs sm:text-sm text-foreground truncate">
+                              {actionTitle}
+                            </span>
                           </div>
 
-                          {/* Fridge Tag */}
-                          {log.fridges && (
-                            <div className="flex items-center gap-1 text-[11px] text-muted mt-1">
-                              <span>{log.fridges.icon || '❄️'}</span>
-                              <span>{log.fridges.name}</span>
-                            </div>
-                          )}
+                          <div className="text-right shrink-0">
+                            <span className="text-[11px] font-medium text-muted block">
+                              {getRelativeTime(log.created_at)}
+                            </span>
+                            <span className="text-[10px] text-muted/80 hidden sm:block">
+                              {formatTime(log.created_at)}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </section>
       </div>
+
+      {/* Edit Budget Modal */}
+      {currentHousehold && (
+        <EditBudgetModal
+          isOpen={showEditBudgetModal}
+          onClose={() => setShowEditBudgetModal(false)}
+          householdId={currentHousehold.id}
+          currentBudget={budgetSummary.budget}
+          onSuccess={(newBudget) => {
+            setBudgetSummary((prev) => {
+              const remaining = Math.max(0, newBudget - prev.totalSpent);
+              const overBudgetAmount = Math.max(0, prev.totalSpent - newBudget);
+              const percentUsed = newBudget > 0 ? Math.round((prev.totalSpent / newBudget) * 100) : 0;
+              return {
+                ...prev,
+                budget: newBudget,
+                remaining,
+                overBudgetAmount,
+                percentUsed,
+                isOverBudget: prev.totalSpent > newBudget,
+                isNearLimit: prev.totalSpent <= newBudget && percentUsed >= 80,
+              };
+            });
+          }}
+        />
+      )}
     </MainLayout>
   );
 }

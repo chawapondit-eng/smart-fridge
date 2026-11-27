@@ -12,12 +12,12 @@ export default function InsightsRedirectPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-50 dark:bg-stone-950 p-4">
-      <div className="flex flex-col items-center gap-3 text-center p-6 rounded-3xl bg-white dark:bg-card border border-border shadow-md max-w-sm">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="ds-card flex flex-col items-center gap-3 text-center p-6 max-w-sm">
         <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-600 flex items-center justify-center animate-bounce">
           <Users className="w-6 h-6" />
         </div>
-        <h2 className="font-heading font-bold text-base text-foreground">
+        <h2 className="font-heading font-semibold text-base text-foreground">
           กำลังนำคุณไปยังหน้า จัดการคนภายในบ้าน
         </h2>
         <p className="text-xs text-muted">

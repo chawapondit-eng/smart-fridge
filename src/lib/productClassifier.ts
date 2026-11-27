@@ -243,13 +243,17 @@ const NOISE_OR_METADATA_PATTERNS: RegExp[] = [
   /^nm$/i,
   /^[a-z0-9]{1,2}$/i, // ข้อความ 1-2 ตัวอักษรสุ่มๆ เช่น "A", "01", "XX"
   /^[\*\#\-\=\.\:\_\/\s]+$/, // เครื่องหมายล้วนๆ
-  /^(total|subtotal|vat|tax|change|cash|balance|amount|pos|receipt|invoice|slip)$/i,
-  /^(ยอดรวม|รวมเงิน|รวมทั้งสิ้น|ยอดสุทธิ|ภาษีมูลค่าเพิ่ม|เงินสด|เงินทอน|ยอดชำระ|คงเหลือ)$/i,
-  /^(ใบเสร็จ|ใบกำกับภาษี|อย่างย่อ|สำเนา|ต้นฉบับ|สลิป)$/i,
+  /^(total|subtotal|grand\s*total|vat|tax|change|cash|balance|amount|pos|receipt|invoice|slip|rounding)$/i,
+  /^(ยอดรวม|รวมเงิน|รวมทั้งสิ้น|ยอดสุทธิ|สุทธิ|ปัดเศษ|ภาษีมูลค่าเพิ่ม|เงินสด|เงินทอน|ยอดชำระ|คงเหลือ)$/i,
+  /^(ใบเสร็จ|ใบกำกับภาษี|อย่างย่อ|สำเนา|ต้นฉบับ|สลิป|หมายเหตุ)$/i,
   /^(ยินดีต้อนรับ|ขอบคุณที่ใช้บริการ|welcome|thank you)$/i,
-  /^(สมาชิก|แต้มสะสม|คะแนน|all member|clubcard|the 1|point)$/i,
+  /^(สมาชิก|ราคาสมาชิก|แต้มสะสม|คะแนน|สะสมแต้ม|all member|clubcard|the 1|point)$/i,
   /^(tel|โทร|สาขา|branch|date|time|เครื่อง|แคชเชียร์|cashier)$/i,
-  /^(ส่วนลด|โปรโมชั่น|discount|coupon|คูปอง)$/i,
+  /^(ส่วนลด|ลดทันที|ประหยัด|โปรโมชั่น|discount|coupon|คูปอง)$/i,
+  /^(พร้อมเพย์|promptpay|qr\s*code|qr\s*payment|โอนเงิน)$/i,
+  /^(ค่าส่ง|ค่าจัดส่ง|ค่าบริการ|delivery\s*fee|service\s*charge|grabexpress|lineman|line\s*man)$/i,
+  /^(ช้อนส้อม|ไม่รับช้อนส้อม|รับช้อนส้อม)$/i,
+  /^(7-eleven|lotus's|lotus|big\s*c|makro|tops|grabmart|grabfood)$/i,
 ];
 
 // -------------------------------------------------------------

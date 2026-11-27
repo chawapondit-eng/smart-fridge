@@ -10,7 +10,6 @@ import toast from 'react-hot-toast';
 import {
   Home,
   UserPlus,
-  Shield,
   User,
   Copy,
   Check,
@@ -23,8 +22,6 @@ import {
   ShieldCheck,
   Sliders,
   Eye,
-  PlusCircle,
-  Edit3,
 } from 'lucide-react';
 import type { MemberRole, MemberPermissions } from '@/types/database';
 import { MemberPermissionsModal } from '@/components/household/MemberPermissionsModal';
@@ -331,39 +328,37 @@ export default function HouseholdPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="space-y-6 animate-in fade-in duration-300 pb-10">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center">
-                <Home className="w-5 h-5" />
-              </div>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-foreground">
-                  {currentHousehold?.name || 'จัดการครัวเรือน'}
-                </h1>
-                <p className="text-xs text-muted">
-                  สมาชิกทั้งหมด {members.length} คน
-                </p>
-              </div>
+        <div className="ds-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-primary-100 text-primary-600 dark:text-primary-300 flex items-center justify-center shrink-0">
+              <Home className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="font-heading text-xl sm:text-2xl font-semibold text-foreground">
+                {currentHousehold?.name || 'จัดการครัวเรือน'}
+              </h1>
+              <p className="text-xs text-muted mt-0.5">
+                สมาชิกทั้งหมด {members.length} คน
+              </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 w-full sm:w-auto">
+          <div className="grid grid-cols-2 gap-2.5 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => {
                 setJoinCodeInput('');
                 setShowJoinModal(true);
               }}
-              className="p-3.5 sm:px-4 sm:py-3 rounded-2xl bg-surface-container-low hover:bg-surface-container border border-border flex flex-col sm:flex-row items-center justify-center text-center sm:text-left gap-2 sm:gap-2.5 transition active:scale-95 cursor-pointer shadow-2xs group"
+              className="p-3 sm:px-4 rounded-xl bg-surface-container-low hover:bg-surface-container border border-border flex flex-col sm:flex-row items-center justify-center text-center sm:text-left gap-2 transition active:scale-95 cursor-pointer group"
             >
-              <div className="w-9 h-9 rounded-xl bg-primary-100 dark:bg-primary-950/60 text-primary-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-lg bg-surface-container text-primary-600 flex items-center justify-center shrink-0">
                 <KeyRound className="w-4 h-4" />
               </div>
               <div>
-                <span className="font-heading font-bold text-xs sm:text-sm text-foreground block">
+                <span className="font-heading font-semibold text-xs sm:text-sm text-foreground block">
                   เข้าร่วมด้วยรหัส
                 </span>
                 <span className="text-[10px] text-muted hidden sm:block">
@@ -376,13 +371,13 @@ export default function HouseholdPage() {
               type="button"
               onClick={generateInvite}
               disabled={generatingCode}
-              className="p-3.5 sm:px-4 sm:py-3 rounded-2xl bg-surface-container-low hover:bg-surface-container border border-border flex flex-col sm:flex-row items-center justify-center text-center sm:text-left gap-2 sm:gap-2.5 transition active:scale-95 cursor-pointer shadow-2xs group"
+              className="p-3 sm:px-4 rounded-xl bg-primary-100 hover:bg-primary-200/70 border border-primary-600/20 flex flex-col sm:flex-row items-center justify-center text-center sm:text-left gap-2 transition active:scale-95 cursor-pointer group"
             >
-              <div className="w-9 h-9 rounded-xl bg-primary-100 dark:bg-primary-950/60 text-primary-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-lg bg-primary-600 text-white flex items-center justify-center shrink-0">
                 <UserPlus className="w-4 h-4" />
               </div>
               <div>
-                <span className="font-heading font-bold text-xs sm:text-sm text-foreground block">
+                <span className="font-heading font-semibold text-xs sm:text-sm text-primary-700 dark:text-primary-200 block">
                   เชิญสมาชิกเข้าบ้าน
                 </span>
                 <span className="text-[10px] text-muted hidden sm:block">
@@ -422,9 +417,9 @@ export default function HouseholdPage() {
 
         {/* Switch Household section if multiple */}
         {households.length > 1 && (
-          <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+          <div className="ds-card p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-foreground">
+              <h2 className="font-heading text-sm font-semibold text-foreground">
                 ครัวเรือนทั้งหมดของคุณ ({households.length} ครัวเรือน)
               </h2>
               <span className="text-xs text-muted">คลิกเพื่อสลับบ้าน</span>
@@ -434,25 +429,26 @@ export default function HouseholdPage() {
               {households.map((h) => {
                 const isCurrent = h.id === currentHousehold?.id;
                 return (
-                  <button
+                  <div
                     key={h.id}
-                    type="button"
                     onClick={() => {
-                      setCurrentHousehold(h);
-                      toast.success(`สลับไปยังบ้าน "${h.name}" แล้ว`);
+                      if (!isCurrent) {
+                        setCurrentHousehold(h);
+                        toast.success(`สลับไปยังบ้าน "${h.name}" แล้ว`);
+                      }
                     }}
-                    className={`p-3.5 rounded-xl border text-left flex items-center justify-between transition ${
+                    className={`p-3.5 rounded-2xl border text-left flex items-center justify-between transition ${
                       isCurrent
-                        ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 shadow-xs'
-                        : 'border-border bg-background hover:bg-muted/10'
+                        ? 'border-primary-600 bg-primary-100/70'
+                        : 'border-border bg-surface-container-low hover:bg-surface-container cursor-pointer'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center shrink-0">
+                      <div className="w-9 h-9 rounded-xl bg-card border border-border text-primary-600 flex items-center justify-center shrink-0">
                         <Home className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <span className="text-sm font-bold text-foreground block truncate">
+                        <span className="font-heading text-sm font-semibold text-foreground block truncate">
                           {h.name}
                         </span>
                         <span className="text-[11px] text-muted">
@@ -462,7 +458,7 @@ export default function HouseholdPage() {
                     </div>
 
                     {isCurrent ? (
-                      <span className="text-xs font-semibold text-primary-600 bg-primary-100 dark:bg-primary-900/40 px-2.5 py-1 rounded-lg shrink-0">
+                      <span className="text-xs font-semibold text-primary-700 dark:text-primary-200 bg-card border border-primary-600/20 px-2.5 py-1 rounded-xl shrink-0">
                         ใช้งานอยู่ ✓
                       </span>
                     ) : (
@@ -473,7 +469,7 @@ export default function HouseholdPage() {
                             setCurrentHousehold(h);
                             toast.success(`สลับไปยังบ้าน "${h.name}" แล้ว`);
                           }}
-                          className="text-xs text-primary-600 hover:text-primary-700 bg-primary-50 dark:bg-primary-950/40 px-2.5 py-1 rounded-lg flex items-center gap-1 font-semibold transition"
+                          className="text-xs text-primary-700 dark:text-primary-200 hover:bg-primary-100 bg-card border border-border px-2.5 py-1.5 rounded-xl flex items-center gap-1 font-semibold transition cursor-pointer"
                         >
                           <span>สลับมาบ้านนี้</span>
                           <ArrowRight className="w-3.5 h-3.5" />
@@ -483,7 +479,7 @@ export default function HouseholdPage() {
                           <button
                             type="button"
                             onClick={() => setDeletingHousehold({ id: h.id, name: h.name })}
-                            className="p-1 rounded-lg text-muted hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
+                            className="p-1.5 rounded-xl text-muted hover:text-rose-600 hover:bg-rose-500/10 transition cursor-pointer"
                             title="ลบครัวเรือนที่ไม่ใช้งานนี้"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -491,7 +487,7 @@ export default function HouseholdPage() {
                         )}
                       </div>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -499,8 +495,8 @@ export default function HouseholdPage() {
         )}
 
         {/* Member List Section */}
-        <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm space-y-4">
-          <h2 className="text-base font-bold text-foreground">
+        <div className="ds-card p-5 sm:p-6 space-y-4">
+          <h2 className="font-heading text-base font-semibold text-foreground">
             รายชื่อสมาชิกในครอบครัว
           </h2>
 
@@ -624,10 +620,10 @@ export default function HouseholdPage() {
                         <button
                           type="button"
                           onClick={() => setEditingPermissionsMember(m)}
-                          className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-950/50 hover:bg-primary-100 dark:hover:bg-primary-900/60 border border-primary-500/30 transition active:scale-95 shadow-2xs cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-primary-700 dark:text-primary-200 bg-primary-100 hover:bg-primary-200/70 border border-primary-600/20 transition active:scale-95 cursor-pointer"
                           title="กำหนดสิทธิ์การใช้งานของสมาชิกคนนี้"
                         >
-                          <Sliders className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+                          <Sliders className="w-3.5 h-3.5 text-primary-600 dark:text-primary-300" />
                           <span className="hidden sm:inline">กำหนดสิทธิ์</span>
                         </button>
                       )}
@@ -637,7 +633,7 @@ export default function HouseholdPage() {
                         <button
                           type="button"
                           onClick={() => setRemovingMember(m)}
-                          className="p-1.5 rounded-lg text-muted hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                          className="p-1.5 rounded-xl text-muted hover:text-rose-600 hover:bg-rose-500/10 transition cursor-pointer"
                           title="นำออกจากครัวเรือน"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -654,29 +650,30 @@ export default function HouseholdPage() {
 
       {/* Invite Member Modal */}
       {showInviteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-[22px] border border-border bg-card p-6 shadow-[var(--shadow-lg)] relative animate-in zoom-in-95 duration-200">
             <button
+              type="button"
               onClick={() => setShowInviteModal(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-muted/10 transition"
+              className="absolute top-4 right-4 p-2 rounded-xl text-muted hover:text-foreground hover:bg-surface-container transition cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
 
-            <div className="w-12 h-12 rounded-2xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-600 dark:text-primary-300 flex items-center justify-center mb-4">
               <KeyRound className="w-6 h-6" />
             </div>
 
-            <h3 className="text-lg font-bold tracking-tight text-foreground">
+            <h3 className="font-heading text-lg font-semibold tracking-tight text-foreground">
               เชิญสมาชิกเข้าครัวเรือน 🎉
             </h3>
             <p className="text-xs text-muted mt-1 leading-relaxed">
               ส่งรหัสคำเชิญนี้ให้สมาชิกในบ้าน เพื่อให้นำไปกรอกเข้าร่วมครัวเรือน &quot;{currentHousehold?.name}&quot;
             </p>
 
-            <div className="my-5 p-4 rounded-xl border border-dashed border-primary-500/50 bg-primary-50/50 dark:bg-primary-950/30 text-center">
+            <div className="my-5 p-4 rounded-2xl border border-dashed border-primary-600/40 bg-primary-100/60 text-center">
               <span className="text-xs text-muted block mb-1">รหัสคำเชิญของคุณ:</span>
-              <div className="text-2xl font-black font-mono tracking-widest text-primary-700 dark:text-primary-300">
+              <div className="text-2xl font-bold font-mono tracking-widest text-primary-700 dark:text-primary-200">
                 {inviteCode}
               </div>
               <span className="text-[11px] text-muted block mt-1">
@@ -688,7 +685,7 @@ export default function HouseholdPage() {
               <button
                 type="button"
                 onClick={handleCopyInvite}
-                className="flex-1 py-2.5 px-4 rounded-xl font-semibold text-sm text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] transition flex items-center justify-center gap-2 shadow-sm"
+                className="ds-btn-primary flex-1 py-2.5 px-4 text-sm flex items-center justify-center gap-2 cursor-pointer"
               >
                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 <span>{copied ? 'คัดลอกสำเร็จ!' : 'คัดลอกรหัสคำเชิญ'}</span>
@@ -700,21 +697,21 @@ export default function HouseholdPage() {
 
       {/* Join Household Modal */}
       {showJoinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-[22px] border border-border bg-card p-6 shadow-[var(--shadow-lg)] relative animate-in zoom-in-95 duration-200">
             <button
               type="button"
               onClick={() => setShowJoinModal(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-muted/10 transition"
+              className="absolute top-4 right-4 p-2 rounded-xl text-muted hover:text-foreground hover:bg-surface-container transition cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
 
-            <div className="w-12 h-12 rounded-2xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary-600 dark:text-primary-300 flex items-center justify-center mb-4">
               <KeyRound className="w-6 h-6" />
             </div>
 
-            <h3 className="text-lg font-bold tracking-tight text-foreground">
+            <h3 className="font-heading text-lg font-semibold tracking-tight text-foreground">
               เข้าร่วมครัวเรือนด้วยรหัสคำเชิญ 🔑
             </h3>
             <p className="text-xs text-muted mt-1 leading-relaxed">
@@ -733,7 +730,7 @@ export default function HouseholdPage() {
                   placeholder="เช่น #TY-6C70F4 หรือ FRIDGE-XXXXXX"
                   required
                   autoFocus
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground uppercase tracking-widest font-mono focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition"
+                  className="ds-input w-full px-3.5 py-2.5 text-sm uppercase tracking-widest font-mono"
                 />
                 <p className="text-[11px] text-muted mt-1">
                   * สามารถกรอกรหัสขึ้นต้นด้วย #TY- หรือ HH- หรือ FRIDGE- หรือชื่อบ้านก็ได้
@@ -744,14 +741,14 @@ export default function HouseholdPage() {
                 <button
                   type="button"
                   onClick={() => setShowJoinModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted hover:text-foreground"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted hover:text-foreground hover:bg-surface-container transition cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
                   disabled={joining || !joinCodeInput.trim()}
-                  className="px-5 py-2 rounded-xl font-semibold text-xs text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50 transition"
+                  className="ds-btn-primary px-5 py-2 text-xs disabled:opacity-50 cursor-pointer"
                 >
                   {joining ? 'กำลังตรวจสอบ...' : 'เข้าร่วมครัวเรือน ➔'}
                 </button>

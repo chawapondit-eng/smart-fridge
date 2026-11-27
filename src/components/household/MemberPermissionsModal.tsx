@@ -4,8 +4,6 @@ import React, { useState, useEffect } from 'react';
 import {
   X,
   Shield,
-  User,
-  Crown,
   Check,
   AlertCircle,
   Loader2,
@@ -141,9 +139,9 @@ export function MemberPermissionsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/40 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        className="w-full max-w-lg rounded-3xl border border-border bg-card p-5 sm:p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] overflow-hidden"
+        className="w-full max-w-lg rounded-[22px] border border-border bg-card p-5 sm:p-6 shadow-[var(--shadow-lg)] relative animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="perm-modal-title"
@@ -151,11 +149,11 @@ export function MemberPermissionsModal({
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-primary-100 dark:bg-primary-950/60 text-primary-600 flex items-center justify-center shadow-xs">
+            <div className="w-10 h-10 rounded-xl bg-primary-100 text-primary-600 dark:text-primary-300 flex items-center justify-center">
               <Shield className="w-5 h-5" />
             </div>
             <div>
-              <h2 id="perm-modal-title" className="font-heading font-bold text-base sm:text-lg text-foreground">
+              <h2 id="perm-modal-title" className="font-heading font-semibold text-base sm:text-lg text-foreground">
                 กำหนดสิทธิ์การใช้งาน
               </h2>
               <p className="text-xs text-muted">
@@ -168,7 +166,7 @@ export function MemberPermissionsModal({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="w-8 h-8 rounded-full text-muted hover:text-foreground hover:bg-surface-container flex items-center justify-center transition active:scale-95 cursor-pointer"
+            className="w-8 h-8 rounded-xl text-muted hover:text-foreground hover:bg-surface-container flex items-center justify-center transition active:scale-95 cursor-pointer"
             aria-label="ปิดหน้าต่าง"
           >
             <X className="w-4 h-4" />
@@ -343,7 +341,7 @@ export function MemberPermissionsModal({
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition active:scale-95 shadow-sm shadow-primary-600/30 cursor-pointer disabled:opacity-50"
+            className="ds-btn-primary inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs cursor-pointer disabled:opacity-50"
           >
             {saving ? (
               <>

@@ -1,14 +1,22 @@
 @import "tailwindcss";
 
 /* ============================================================
-   CheckTuYen (Smart Fridge) — Design System
+   CheckTuYen (Smart Fridge) — Unified Warm Orange Design System
    ============================================================
-   Primary Theme: สีส้ม (Warm Orange)
-   Secondary Theme: สีเขียว (Fresh Green / Eco Zero-Waste)
-   Tertiary Theme: สีแดง (Urgent / Expiring Soon)
+   Style: Modern Minimal SaaS Dashboard (Warm Orange & Cream Neutral)
+   Color Tokens:
+     - Primary Orange:  #EA580C / #F97316
+     - Dark Orange:     #C2410C
+     - Light Orange:    #FFEDD5 / #FFF7ED
+     - Background:      #FAF9F6
+     - Card Background: #FFFFFF
+     - Soft Cream:      #F5F2EB
+     - Main Text:       #252525
+     - Secondary Text:  #777777
+     - Border:          #EAE6DF
    Typography:
-     - Headings (หัวข้อใหญ่): Mitr
-     - Body & Sub-text (ฟอนต์ย่อย): IBM Plex Sans Thai Looped
+     - Headings: Mitr
+     - Body:     IBM Plex Sans Thai Looped
    ============================================================ */
 
 :root {
@@ -16,7 +24,7 @@
   --font-heading: 'Mitr', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-body: 'IBM Plex Sans Thai Looped', -apple-system, BlinkMacSystemFont, sans-serif;
 
-  /* Primary Orange (สีส้ม — สีหลักของแบรนด์และแอ็กชัน) */
+  /* Primary Warm Orange Scale */
   --primary-50: #fff7ed;
   --primary-100: #ffedd5;
   --primary-200: #fed7aa;
@@ -30,7 +38,7 @@
   --primary-fixed: #ffedd5;
   --on-primary-fixed: #7c2d12;
 
-  /* Secondary Green (สีเขียว — สื่อถึงความสดใหม่, อาหารสด, ช่วยโลก Zero-Waste) */
+  /* Secondary Fresh Semantic Green (used strictly for fresh status accents) */
   --secondary-50: #f0fdf4;
   --secondary-100: #dcfce7;
   --secondary-200: #bbf7d0;
@@ -43,7 +51,7 @@
   --secondary-fixed: #dcfce7;
   --on-secondary-fixed: #14532d;
 
-  /* Tertiary Red / Danger (สีแดง — อาหารใกล้หมดอายุ, แจ้งเตือนด่วน, หักสต็อก) */
+  /* Tertiary Alert / Danger */
   --tertiary-50: #fef2f2;
   --tertiary-100: #fee2e2;
   --tertiary-200: #fecaca;
@@ -63,38 +71,39 @@
   --warning-500: #f59e0b;
   --warning-600: #d97706;
 
-  /* Surfaces & Backgrounds — Warm White per Reference UI.pdf */
+  /* Surfaces & Backgrounds — Warm Cream & Clean White */
   --background: #faf9f6;
   --foreground: #252525;
-  --surface: #ffffff;
+  --surface: #faf9f6;
   --on-surface: #252525;
   --surface-container-lowest: #ffffff;
-  --surface-container-low: #fbf9f5;
-  --surface-container: #f6f3ee;
-  --surface-container-high: #efece5;
-  --surface-container-highest: #e7e3dc;
+  --surface-container-low: #fbfaf7;
+  --surface-container: #f5f2eb;
+  --surface-container-high: #ede8de;
+  --surface-container-highest: #e4ded1;
   --on-surface-variant: #777777;
 
   --card: #ffffff;
   --card-hover: #fff9f5;
-  --border: #eeeeee;
-  --border-light: #f5f5f5;
+  --border: #eae6df;
+  --border-light: #f4f1eb;
   --muted: #777777;
   --muted-light: #a0988f;
   --outline: #a0988f;
-  --outline-variant: #eeeeee;
+  --outline-variant: #eae6df;
 
   --input-bg: #ffffff;
-  --input-border: #eeeeee;
-  --input-focus: var(--primary-500);
+  --input-border: #eae6df;
+  --input-focus: #ea580c;
 
+  /* Soft SaaS Shadows */
   --shadow-xs: 0 1px 2px 0 rgb(37 37 37 / 0.03);
-  --shadow-sm: 0 2px 4px 0 rgb(37 37 37 / 0.04), 0 1px 2px -1px rgb(37 37 37 / 0.02);
-  --shadow-md: 0 6px 12px -2px rgb(37 37 37 / 0.06), 0 3px 6px -3px rgb(37 37 37 / 0.03);
-  --shadow-lg: 0 12px 20px -4px rgb(37 37 37 / 0.08), 0 4px 8px -4px rgb(37 37 37 / 0.03);
+  --shadow-sm: 0 2px 8px -2px rgb(37 37 37 / 0.05), 0 1px 3px 0 rgb(37 37 37 / 0.03);
+  --shadow-md: 0 8px 20px -4px rgb(37 37 37 / 0.07), 0 2px 6px -2px rgb(37 37 37 / 0.03);
+  --shadow-lg: 0 16px 32px -6px rgb(37 37 37 / 0.10), 0 6px 12px -4px rgb(37 37 37 / 0.04);
 
   --sidebar-bg: #ffffff;
-  --sidebar-border: #eeeeee;
+  --sidebar-border: #eae6df;
 
   /* Status Badges */
   --status-fresh-bg: #dcfce7;
@@ -103,41 +112,48 @@
   --status-expiring-text: #b45309;
   --status-expired-bg: #fee2e2;
   --status-expired-text: #b91c1c;
-  --status-out-bg: #f5f5f4;
-  --status-out-text: #78716c;
+  --status-out-bg: #f5f2eb;
+  --status-out-text: #777777;
 }
 
-/* Dark Mode Tokens */
+/* Dark Mode Tokens — Warm Espresso Neutral */
 .dark {
   --background: #14110e;
-  --foreground: #e6e1da;
+  --foreground: #ece6de;
   --surface: #14110e;
-  --on-surface: #e6e1da;
+  --on-surface: #ece6de;
   --surface-container-lowest: #1f1a16;
-  --surface-container-low: #28221c;
-  --surface-container: #322b24;
-  --surface-container-high: #3d342c;
-  --surface-container-highest: #473e34;
-  --on-surface-variant: #aba298;
+  --surface-container-low: #27211b;
+  --surface-container: #312922;
+  --surface-container-high: #3c332b;
+  --surface-container-highest: #473d33;
+  --on-surface-variant: #a89f95;
 
-  /* Primary Orange Dark Tokens */
-  --primary-50: #27160d;
-  --primary-100: #3b2113;
-  --primary-200: #552d19;
-  --primary-fixed: #3b2113;
+  /* Primary Orange Dark Tokens (high-contrast soft peach/amber text on dark cards) */
+  --primary-50: #29170e;
+  --primary-100: #3d2113;
+  --primary-200: #fed7aa;
+  --primary-300: #fdba74;
+  --primary-400: #fb923c;
+  --primary-500: #f97316;
+  --primary-600: #ea580c;
+  --primary-700: #c2410c;
+  --primary-800: #7c2d12;
+  --primary-900: #431708;
+  --primary-fixed: #3d2113;
   --on-primary-fixed: #fed7aa;
 
   /* Secondary Green Dark Tokens */
   --secondary-50: #0d2315;
   --secondary-100: #143520;
-  --secondary-200: #1a4a2b;
+  --secondary-200: #86efac;
   --secondary-fixed: #143520;
   --on-secondary-fixed: #86efac;
 
   /* Tertiary Red Dark Tokens */
   --tertiary-50: #2b0f0f;
   --tertiary-100: #3d1414;
-  --tertiary-200: #541a1a;
+  --tertiary-200: #fca5a5;
   --tertiary-fixed: #3d1414;
   --on-tertiary-fixed: #fca5a5;
   --error: #f87171;
@@ -145,9 +161,9 @@
   --on-error-container: #fca5a5;
 
   --card: #1f1a16;
-  --card-hover: #28221c;
+  --card-hover: #27211b;
   --border: #383027;
-  --border-light: #28221c;
+  --border-light: #27211b;
   --muted: #a39b90;
   --muted-light: #7c746a;
   --outline: #7c746a;
@@ -155,6 +171,11 @@
 
   --input-bg: #1f1a16;
   --input-border: #383027;
+
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.25);
+  --shadow-sm: 0 2px 8px -2px rgb(0 0 0 / 0.35);
+  --shadow-md: 0 8px 20px -4px rgb(0 0 0 / 0.45);
+  --shadow-lg: 0 16px 32px -6px rgb(0 0 0 / 0.55);
 
   --sidebar-bg: #1f1a16;
   --sidebar-border: #383027;
@@ -183,8 +204,61 @@ body {
 
 h1, h2, h3, h4, h5, h6, .font-heading {
   font-family: var(--font-heading);
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
   font-weight: 600;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   Reusable Design System Components
+   ============================================================ */
+.ds-card {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.ds-card-soft {
+  background-color: var(--surface-container);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.ds-input {
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 14px;
+  color: var(--foreground);
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.ds-input:focus,
+.ds-input:focus-within {
+  border-color: var(--primary-600);
+  box-shadow: 0 0 0 3px rgb(234 88 12 / 0.14);
+  outline: none;
+}
+
+.ds-btn-primary {
+  background-color: var(--primary-600);
+  color: #ffffff;
+  border-radius: 14px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px -2px rgb(234 88 12 / 0.35);
+  transition: background-color 150ms ease, transform 120ms ease, box-shadow 150ms ease;
+}
+
+.ds-btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-700);
+  box-shadow: 0 4px 12px -2px rgb(194 65 12 / 0.35);
+}
+
+.ds-btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 /* Material Symbols Outlined Web Font Support */

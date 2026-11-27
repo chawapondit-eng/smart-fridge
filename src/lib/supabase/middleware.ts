@@ -51,17 +51,29 @@ export async function updateSession(request: NextRequest) {
     user = data?.user ?? null;
   } catch {
     // Supabase ไม่พร้อมใช้งาน (paused / network error)
-    // ถ้าอยู่หน้า public ให้ผ่านไปปกติ ถ้าไม่ใช่ redirect ไป login
+    // ถ้าอยู่หน้า public ให้ผ่านไปปกติ ถ้าเป็น API คืนค่า JSON 401 ถ้าไม่ใช่ redirect ไป login
     if (isPublicRoute) {
       return supabaseResponse;
+    }
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { success: false, error: 'ไม่สามารถตรวจสอบสิทธิ์การเข้าใช้งานได้ กรุณาเข้าสู่ระบบใหม่' },
+        { status: 401 }
+      );
     }
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
-  // ถ้ายังไม่ล็อกอินและไม่ได้อยู่หน้า public → redirect ไป login
+  // ถ้ายังไม่ล็อกอินและไม่ได้อยู่หน้า public → คืนค่า 401 JSON สำหรับ API หรือ redirect ไป login
   if (!user && !isPublicRoute) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { success: false, error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง' },
+        { status: 401 }
+      );
+    }
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);

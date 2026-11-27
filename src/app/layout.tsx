@@ -11,7 +11,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#f97316",
+  themeColor: "#ea580c",
 };
 
 export const metadata: Metadata = {
@@ -40,12 +40,25 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full flex flex-col bg-background text-foreground antialiased selection:bg-orange-500/20 selection:text-orange-900">
+      <body className="min-h-full flex flex-col bg-background text-foreground antialiased selection:bg-primary-100 selection:text-primary-800">
         <QueryProvider>
           <ThemeProvider>
             <HouseholdProvider>
               {children}
-              <Toaster position="top-right" />
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  style: {
+                    background: 'var(--card)',
+                    color: 'var(--foreground)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '14px',
+                    boxShadow: 'var(--shadow-md)',
+                    fontSize: '13px',
+                    fontFamily: 'var(--font-body)',
+                  },
+                }}
+              />
             </HouseholdProvider>
           </ThemeProvider>
         </QueryProvider>

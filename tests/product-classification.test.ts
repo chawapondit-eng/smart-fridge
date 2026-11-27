@@ -2,11 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   classifyProductSemantically,
-  classifyProductWithLearning,
   sanitizeProductName,
   isOcrNoiseOrReceiptMetadata,
   getEstimatedPriceBenchmark,
-  type ProductCategory,
 } from '../src/lib/productClassifier';
 
 // ============================================================

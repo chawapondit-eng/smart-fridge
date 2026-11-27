@@ -9,7 +9,7 @@ import {
   saveLocalMemberPermissions,
   getLocalMemberPermissions,
 } from '../src/lib/permissions';
-import type { MemberRole, MemberPermissions } from '../src/types/database';
+import type { MemberPermissions } from '../src/types/database';
 
 // Mock localStorage for Node test environment
 if (typeof globalThis.localStorage === 'undefined') {

@@ -8,19 +8,29 @@ import {
 
 // Polyfill localStorage in test runtime
 const storage = new Map<string, string>();
-(globalThis as any).localStorage = {
+(globalThis as { localStorage?: Storage }).localStorage = {
   getItem: (key: string) => storage.get(key) || null,
-  setItem: (key: string, val: string) => storage.set(key, String(val)),
-  removeItem: (key: string) => storage.delete(key),
+  setItem: (key: string, val: string) => {
+    storage.set(key, String(val));
+  },
+  removeItem: (key: string) => {
+    storage.delete(key);
+  },
   clear: () => storage.clear(),
+  key: (idx: number) => Array.from(storage.keys())[idx] || null,
+  get length() {
+    return storage.size;
+  },
 };
 
-function createMockSupabase(logs: any[] = [], dbBudget: number | null = null) {
+type BudgetSummaryClient = Parameters<typeof fetchWeeklyBudgetSummary>[0];
+
+function createMockSupabase(logs: Array<Record<string, unknown>> = [], dbBudget: number | null = null): BudgetSummaryClient {
   return {
     from: () => ({
       select: () => ({
-        eq: (col1: string, val1: string) => ({
-          eq: (col2: string, val2: string) => {
+        eq: () => ({
+          eq: (_col2: string, val2: string) => {
             if (val2 === 'budget_updated') {
               return {
                 order: () => ({
@@ -43,7 +53,7 @@ function createMockSupabase(logs: any[] = [], dbBudget: number | null = null) {
         }),
       }),
     }),
-  };
+  } as unknown as BudgetSummaryClient;
 }
 
 // ============================================================
@@ -80,7 +90,7 @@ test('Budget: fetchWeeklyBudgetSummary calculates budget within normal limit (< 
   ];
 
   const mockClient = createMockSupabase(mockLogs, 3000);
-  const summary = await fetchWeeklyBudgetSummary(mockClient as any, hhId);
+  const summary = await fetchWeeklyBudgetSummary(mockClient, hhId);
 
   assert.equal(summary.budget, 3000);
   assert.equal(summary.totalSpent, 850);
@@ -112,7 +122,7 @@ test('Budget: fetchWeeklyBudgetSummary detects Near Limit threshold (>= 80%)', a
   ];
 
   const mockClient = createMockSupabase(mockLogs, 2000);
-  const summary = await fetchWeeklyBudgetSummary(mockClient as any, hhId);
+  const summary = await fetchWeeklyBudgetSummary(mockClient, hhId);
 
   assert.equal(summary.budget, 2000);
   assert.equal(summary.totalSpent, 1700);
@@ -141,7 +151,7 @@ test('Budget: fetchWeeklyBudgetSummary detects Over Budget threshold (> 100%)', 
   ];
 
   const mockClient = createMockSupabase(mockLogs, 2000);
-  const summary = await fetchWeeklyBudgetSummary(mockClient as any, hhId);
+  const summary = await fetchWeeklyBudgetSummary(mockClient, hhId);
 
   assert.equal(summary.budget, 2000);
   assert.equal(summary.totalSpent, 2450);
@@ -159,8 +169,6 @@ test('Smart Health: Freshness score and counts calculation', () => {
   // Case A: 3 fresh, 1 expired, 0 expiring soon out of 4 total items (matches Image 2: 75%)
   const totalA = 4;
   const freshA = 3;
-  const expiringA = 0;
-  const expiredA = 1;
 
   const percentA = Math.round((freshA / totalA) * 100);
   assert.equal(percentA, 75);

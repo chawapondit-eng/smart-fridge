@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useHousehold } from '@/contexts/HouseholdContext';
 import toast from 'react-hot-toast';
@@ -30,7 +29,6 @@ export function AddProductModal({
   defaultFridgeId,
   onSuccess,
 }: AddProductModalProps) {
-  const router = useRouter();
   const supabase = createClient();
   const { currentHousehold, fridges, authUser, user, canAddItems } = useHousehold();
 
@@ -39,7 +37,6 @@ export function AddProductModal({
   const [quantity, setQuantity] = useState('1');
   const [unit, setUnit] = useState('ชิ้น');
   const [expiryDate, setExpiryDate] = useState('');
-  const [daysUntilInput, setDaysUntilInput] = useState('');
   const [reminderBeforeDays, setReminderBeforeDaysState] = useState<number>(3);
   const [imageUrl, setImageUrl] = useState('');
   const [userSelectedEmoji, setUserSelectedEmoji] = useState(false);
@@ -57,32 +54,6 @@ export function AddProductModal({
       setReminderBeforeDaysState(getReminderBeforeDays(currentHousehold?.id));
     }
   }, [isOpen, defaultFridgeId, fridges, fridgeId, currentHousehold?.id]);
-
-  // เมื่อผู้ใช้กรอก "หมดอายุในอีก X วัน" -> คำนวณ expiry_date = todayBangkok + X วัน
-  function handleDaysUntilChange(val: string) {
-    setDaysUntilInput(val);
-    if (val.trim() === '') {
-      return;
-    }
-    const num = parseInt(val, 10);
-    if (!isNaN(num) && num >= 0 && num <= 3650) {
-      setExpiryDate(addDaysFromBangkokToday(num));
-    }
-  }
-
-  // เมื่อผู้ใช้เลือกวันที่จาก Date Picker -> บันทึกตรงตามที่เลือก ห้ามเลื่อนวันเอง
-  function handleDatePickerChange(val: string) {
-    const clean = normalizeDateString(val) || '';
-    setExpiryDate(clean);
-    if (clean) {
-      const diff = getDaysUntilExpiry(clean);
-      setDaysUntilInput(diff !== null && diff >= 0 ? String(diff) : '');
-    } else {
-      setDaysUntilInput('');
-    }
-  }
-
-  const calculatedDaysLeft = getDaysUntilExpiry(expiryDate);
 
   const targetFridge = fridges.find((f) => f.id === (fridgeId || defaultFridgeId || fridges[0]?.id));
 
@@ -245,7 +216,6 @@ export function AddProductModal({
       setName('');
       setQuantity('1');
       setExpiryDate('');
-      setDaysUntilInput('');
       setImageUrl('');
       setUserSelectedEmoji(false);
       setNotes('');
@@ -270,21 +240,23 @@ export function AddProductModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-lg rounded-[22px] border border-border bg-card p-6 shadow-[var(--shadow-lg)] relative max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
         <button
+          type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-muted/10 transition"
+          className="absolute top-4 right-4 p-2 rounded-xl text-muted hover:text-foreground hover:bg-surface-container transition cursor-pointer"
+          aria-label="ปิด"
         >
           <X className="w-4 h-4" />
         </button>
 
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-primary-100 text-primary-600 dark:text-primary-300 flex items-center justify-center shrink-0">
             <Plus className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-lg font-bold tracking-tight text-foreground">
+            <h3 className="font-heading text-lg font-semibold tracking-tight text-foreground">
               เพิ่มวัตถุดิบ
             </h3>
             <p className="text-xs text-muted">
@@ -308,14 +280,14 @@ export function AddProductModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Emoji Selection (เลือก Emoji แทนรูปภาพ) */}
-          <div className="p-4 rounded-xl border border-border bg-muted/5 space-y-3">
+          <div className="p-4 rounded-2xl border border-border bg-surface-container-low space-y-3">
             <div className="flex items-center gap-3.5">
-              <div className="w-14 h-14 rounded-2xl border-2 border-primary-500/30 bg-primary-50 dark:bg-primary-950/40 flex items-center justify-center shrink-0 shadow-sm text-3xl">
+              <div className="w-14 h-14 rounded-2xl border border-primary-600/25 bg-primary-100 flex items-center justify-center shrink-0 shadow-[var(--shadow-xs)] text-3xl">
                 <span>{imageUrl || getAutoEmoji(name || 'สินค้า')}</span>
               </div>
               <div className="flex-1 min-w-0">
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted block">
-                  Emoji รูปวัตถุดิบ
+                  Emoji ประจำวัตถุดิบ
                 </span>
                 <p className="text-xs text-foreground font-medium mt-0.5 truncate">
                   {userSelectedEmoji ? 'เลือก Emoji นี้แล้ว' : 'แนะนำตามชื่อสินค้า หรือแตะเลือกด้านล่าง'}
@@ -326,9 +298,9 @@ export function AddProductModal({
             {/* Quick Emoji Picker */}
             <div className="pt-1">
               <span className="text-xs text-muted block mb-2 font-medium">
-                แตะเพื่อเลือก Emoji แทนรูปภาพ:
+                แตะเลือก Emoji:
               </span>
-              <div className="grid grid-cols-8 sm:grid-cols-10 gap-1.5 max-h-32 overflow-y-auto p-1.5 rounded-xl bg-card border border-border">
+              <div className="grid grid-cols-8 sm:grid-cols-10 gap-1.5 max-h-32 overflow-y-auto p-2 rounded-xl bg-card border border-border">
                 {FOOD_EMOJIS.map((emoji) => (
                   <button
                     key={emoji}
@@ -337,8 +309,8 @@ export function AddProductModal({
                       setImageUrl(emoji);
                       setUserSelectedEmoji(true);
                     }}
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg hover:bg-muted/20 hover:scale-110 active:scale-95 transition ${
-                      imageUrl === emoji ? 'bg-primary-100 dark:bg-primary-900/50 ring-2 ring-primary-500' : ''
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg hover:bg-surface-container hover:scale-110 active:scale-95 transition cursor-pointer ${
+                      imageUrl === emoji ? 'bg-primary-100 ring-2 ring-primary-600' : ''
                     }`}
                   >
                     {emoji}
@@ -528,7 +500,7 @@ export function AddProductModal({
             <button
               type="submit"
               disabled={submitting || !canAddItems}
-              className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 active:scale-[0.98] shadow-sm shadow-primary-600/25 transition disabled:opacity-50 flex items-center gap-2"
+              className="ds-btn-primary px-5 py-2.5 text-sm disabled:opacity-50 flex items-center gap-2 cursor-pointer"
             >
               {submitting ? (
                 'กำลังบันทึก...'

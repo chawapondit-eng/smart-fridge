@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail, User, CheckCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail, User, Leaf } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -89,108 +89,120 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col justify-between antialiased">
+    <div className="min-h-screen bg-background text-foreground flex flex-col justify-between antialiased relative overflow-hidden">
+      {/* Subtle organic background accents */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-primary-100/70 blur-3xl" />
+        <div className="absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-surface-container/90 blur-3xl" />
+      </div>
+
       {/* Top Header */}
-      <header className="w-full pt-safe bg-surface/85 backdrop-blur-xl border-b border-border/60 shadow-[0_1px_8px_rgba(120,113,108,0.04)] sticky top-0 z-30">
-        <div className="max-w-md mx-auto h-16 px-4 flex items-center justify-between">
-          <button
-            onClick={() => router.back()}
-            type="button"
-            className="w-10 h-10 -ml-1 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-container-low transition"
-            aria-label="ย้อนกลับ"
+      <header className="relative z-10 w-full pt-safe bg-card/85 backdrop-blur-xl border-b border-border sticky top-0">
+        <div className="max-w-5xl mx-auto h-16 px-4 sm:px-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.back()}
+              type="button"
+              className="w-9 h-9 rounded-xl border border-border bg-surface-container-low hover:bg-surface-container flex items-center justify-center text-foreground transition cursor-pointer"
+              aria-label="ย้อนกลับ"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-primary-600 text-white flex items-center justify-center">
+                <span className="material-symbols-outlined text-[18px]">kitchen</span>
+              </div>
+              <span className="font-heading font-semibold text-base text-foreground">CheckTuYen</span>
+            </div>
+          </div>
+
+          <Link
+            href="/login"
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-primary-700 bg-primary-100 hover:bg-primary-200/70 transition"
           >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary-600 text-[22px]">kitchen</span>
-            <h1 className="font-heading font-bold text-base text-on-surface">สร้างบัญชีใหม่</h1>
-          </div>
-
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary-600 to-primary-400 flex items-center justify-center text-white shadow-sm">
-            <span className="material-symbols-outlined text-[18px]">person_add</span>
-          </div>
+            เข้าสู่ระบบ
+          </Link>
         </div>
       </header>
 
       {/* Main Content Form */}
-      <main className="flex-1 flex flex-col justify-center px-4 py-8 max-w-md w-full mx-auto pb-safe">
+      <main className="relative z-10 flex-1 flex flex-col justify-center px-4 py-8 max-w-md w-full mx-auto pb-safe">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed text-xs font-bold mb-2">
-            <span className="material-symbols-outlined text-[15px]">eco</span>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-100 border border-primary-600/20 text-primary-700 dark:text-primary-300 text-xs font-semibold mb-3">
+            <Leaf className="w-3.5 h-3.5 text-primary-600" />
             <span>เริ่มต้นดูแลครัวของคุณ</span>
           </div>
-          <h2 className="font-heading text-2xl font-bold text-on-surface">
+          <h2 className="font-heading text-2xl sm:text-3xl font-semibold text-foreground">
             สมัครสมาชิก CheckTuYen
           </h2>
-          <p className="text-xs text-on-surface-variant mt-1">
+          <p className="text-xs sm:text-sm text-muted mt-1.5">
             ร่วมลดขยะอาหาร จัดระเบียบตู้เย็น และแชร์กับสมาชิกในบ้าน
           </p>
         </div>
 
         <form
           onSubmit={handleRegister}
-          className="bg-surface-container-lowest rounded-3xl p-5 sm:p-6 shadow-sm border border-border space-y-4"
+          className="bg-card rounded-[22px] p-6 sm:p-7 shadow-[var(--shadow-md)] border border-border space-y-4"
         >
-          {/* Display Name Input */}
+          {/* Display Name */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-on-surface" htmlFor="displayName">
+            <label className="block text-xs font-semibold text-foreground" htmlFor="displayName">
               ชื่อของคุณ / ชื่อเล่น
             </label>
-            <div className="relative flex items-center bg-surface-container-low rounded-2xl px-3.5 py-2.5 transition focus-within:bg-surface-container-lowest focus-within:ring-2 focus-within:ring-primary-500/30 border border-border/80">
-              <User className="w-4 h-4 text-on-surface-variant mr-2.5 shrink-0" />
+            <div className="ds-input relative flex items-center px-3.5 py-2.5">
+              <User className="w-4 h-4 text-muted mr-2.5 shrink-0" />
               <input
                 id="displayName"
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="เช่น แม่, นนท์, บี"
-                className="w-full bg-transparent text-sm text-on-surface placeholder:text-muted outline-none"
+                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/70 outline-none"
                 required
               />
             </div>
           </div>
 
-          {/* Email Input */}
+          {/* Email */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-on-surface" htmlFor="email">
+            <label className="block text-xs font-semibold text-foreground" htmlFor="email">
               อีเมล
             </label>
-            <div className="relative flex items-center bg-surface-container-low rounded-2xl px-3.5 py-2.5 transition focus-within:bg-surface-container-lowest focus-within:ring-2 focus-within:ring-primary-500/30 border border-border/80">
-              <Mail className="w-4 h-4 text-on-surface-variant mr-2.5 shrink-0" />
+            <div className="ds-input relative flex items-center px-3.5 py-2.5">
+              <Mail className="w-4 h-4 text-muted mr-2.5 shrink-0" />
               <input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@email.com"
-                className="w-full bg-transparent text-sm text-on-surface placeholder:text-muted outline-none"
+                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/70 outline-none"
                 required
               />
             </div>
           </div>
 
-          {/* Password Input */}
+          {/* Password */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-on-surface" htmlFor="password">
+            <label className="block text-xs font-semibold text-foreground" htmlFor="password">
               รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)
             </label>
-            <div className="relative flex items-center bg-surface-container-low rounded-2xl px-3.5 py-2.5 transition focus-within:bg-surface-container-lowest focus-within:ring-2 focus-within:ring-primary-500/30 border border-border/80">
-              <Lock className="w-4 h-4 text-on-surface-variant mr-2.5 shrink-0" />
+            <div className="ds-input relative flex items-center px-3.5 py-2.5">
+              <Lock className="w-4 h-4 text-muted mr-2.5 shrink-0" />
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="ตั้งรหัสผ่านของคุณ"
-                className="w-full bg-transparent text-sm text-on-surface placeholder:text-muted outline-none"
+                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/70 outline-none"
                 required
                 minLength={6}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="text-muted hover:text-primary-600 transition p-1"
+                className="text-muted hover:text-primary-600 transition p-1 cursor-pointer"
                 aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -198,20 +210,20 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          {/* Confirm Password Input */}
+          {/* Confirm Password */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-on-surface" htmlFor="confirmPassword">
+            <label className="block text-xs font-semibold text-foreground" htmlFor="confirmPassword">
               ยืนยันรหัสผ่านอีกครั้ง
             </label>
-            <div className="relative flex items-center bg-surface-container-low rounded-2xl px-3.5 py-2.5 transition focus-within:bg-surface-container-lowest focus-within:ring-2 focus-within:ring-primary-500/30 border border-border/80">
-              <Lock className="w-4 h-4 text-on-surface-variant mr-2.5 shrink-0" />
+            <div className="ds-input relative flex items-center px-3.5 py-2.5">
+              <Lock className="w-4 h-4 text-muted mr-2.5 shrink-0" />
               <input
                 id="confirmPassword"
                 type={showPassword ? 'text' : 'password'}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="กรอกรหัสผ่านซ้ำอีกครั้ง"
-                className="w-full bg-transparent text-sm text-on-surface placeholder:text-muted outline-none"
+                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/70 outline-none"
                 required
                 minLength={6}
               />
@@ -225,20 +237,20 @@ export default function RegisterPage() {
                 type="checkbox"
                 checked={agreeTerms}
                 onChange={(e) => setAgreeTerms(e.target.checked)}
-                className="w-4 h-4 mt-0.5 rounded text-primary-600 focus:ring-primary-500 border-border"
+                className="w-4 h-4 mt-0.5 rounded accent-primary-600 border-border cursor-pointer"
               />
-              <span className="text-xs text-on-surface-variant leading-relaxed">
+              <span className="text-xs text-muted leading-relaxed">
                 ฉันยอมรับเงื่อนไขการใช้งานและนโยบายความเป็นส่วนตัว
               </span>
             </label>
           </div>
 
-          {/* Submit Button */}
+          {/* Submit */}
           <div className="pt-2">
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-12 rounded-2xl bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-primary-500/25 active:scale-[0.98] transition-all disabled:opacity-60"
+              className="ds-btn-primary w-full h-12 text-sm flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -250,20 +262,19 @@ export default function RegisterPage() {
               )}
             </button>
           </div>
-        </form>
 
-        {/* Login Prompt Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-xs text-on-surface-variant">
-            มีบัญชีผู้ใช้อยู่แล้วใช่ไหม?
-            <Link
-              href="/login"
-              className="font-bold text-primary-600 hover:underline ml-1.5"
-            >
-              เข้าสู่ระบบที่นี่
-            </Link>
-          </p>
-        </div>
+          <div className="pt-4 text-center border-t border-border">
+            <p className="text-xs text-muted">
+              มีบัญชีผู้ใช้อยู่แล้วใช่ไหม?
+              <Link
+                href="/login"
+                className="font-semibold text-primary-600 hover:text-primary-700 hover:underline ml-1.5"
+              >
+                เข้าสู่ระบบที่นี่
+              </Link>
+            </p>
+          </div>
+        </form>
       </main>
     </div>
   );
