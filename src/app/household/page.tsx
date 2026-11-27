@@ -25,7 +25,10 @@ import {
 } from 'lucide-react';
 import type { MemberRole, MemberPermissions } from '@/types/database';
 import { MemberPermissionsModal } from '@/components/household/MemberPermissionsModal';
-import { resolveMemberPermissions } from '@/lib/permissions';
+import {
+  resolveMemberPermissions,
+  fetchSyncedMemberPermissionsMap,
+} from '@/lib/permissions';
 
 interface MemberDetail {
   id: string;
@@ -96,12 +99,15 @@ export default function HouseholdPage() {
         return;
       }
 
-      // 2. ดึง user profiles
+      // 2. ดึง user profiles และสิทธิ์ซิงค์จาก activity_logs พร้อมกัน
       const userIds = memberRows.map((m) => m.user_id);
-      const { data: userProfiles } = await supabase
-        .from('users')
-        .select('id, email, display_name, avatar_url')
-        .in('id', userIds);
+      const [{ data: userProfiles }, syncedPermsMap] = await Promise.all([
+        supabase
+          .from('users')
+          .select('id, email, display_name, avatar_url')
+          .in('id', userIds),
+        fetchSyncedMemberPermissionsMap(supabase, [currentHousehold.id]),
+      ]);
 
       const userMap = new Map((userProfiles || []).map((u) => [u.id, u]));
 
@@ -132,9 +138,12 @@ export default function HouseholdPage() {
         .map((m, index) => {
           const profile = userMap.get(m.user_id);
           const isSelf = m.user_id === authUser?.id;
+          const synced = syncedPermsMap.get(`${currentHousehold.id}:${m.user_id}`);
+          const rawRole = m.role === 'owner' ? 'owner' : m.permissions != null ? m.role : synced?.role || m.role;
+          const rawPerms = m.permissions ?? synced?.permissions;
           const resolved = resolveMemberPermissions(
-            m.role,
-            m.permissions,
+            rawRole,
+            rawPerms,
             currentHousehold.id,
             m.user_id
           );

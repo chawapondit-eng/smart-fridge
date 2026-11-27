@@ -3,7 +3,11 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Household, Fridge, MemberRole, MemberPermissions, User as DbUser } from '@/types/database';
-import { resolveMemberPermissions, DEFAULT_ROLE_PERMISSIONS } from '@/lib/permissions';
+import {
+  resolveMemberPermissions,
+  DEFAULT_ROLE_PERMISSIONS,
+  fetchSyncedMemberPermissionsMap,
+} from '@/lib/permissions';
 import toast from 'react-hot-toast';
 
 export interface HouseholdWithRole extends Household {
@@ -182,11 +186,11 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
 
       const householdIds = memberRows.map((m) => m.household_id);
 
-      // 2. ดึงข้อมูล households ตาม IDs
-      const { data: hData, error: hError } = await supabase
-        .from('households')
-        .select('*')
-        .in('id', householdIds);
+      // 2. ดึงข้อมูล households ตาม IDs และสิทธิ์ซิงค์จาก activity_logs พร้อมกัน
+      const [{ data: hData, error: hError }, syncedPermsMap] = await Promise.all([
+        supabase.from('households').select('*').in('id', householdIds),
+        fetchSyncedMemberPermissionsMap(supabase, householdIds),
+      ]);
 
       if (hError) {
         console.error('Error fetching households by ids:', getErrorMessage(hError));
@@ -200,8 +204,11 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         );
 
         const list: HouseholdWithRole[] = hData.map((h) => {
-          const rawRole = roleMap.get(h.id) || 'member';
-          const rawPerms = permsMap.get(h.id);
+          const dbRole = roleMap.get(h.id) || 'member';
+          const dbPerms = permsMap.get(h.id);
+          const synced = syncedPermsMap.get(`${h.id}:${authUser.id}`);
+          const rawRole = dbRole === 'owner' ? 'owner' : dbPerms != null ? dbRole : synced?.role || dbRole;
+          const rawPerms = dbPerms ?? synced?.permissions;
           const resolved = resolveMemberPermissions(rawRole, rawPerms, h.id, authUser.id);
           return {
             ...h,
@@ -255,6 +262,21 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         },
         () => {
           fetchHouseholds();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'activity_logs',
+        },
+        (payload) => {
+          const details = (payload.new as { details?: { permission_sync?: boolean; target_user_id?: string } })
+            ?.details;
+          if (details?.permission_sync || details?.target_user_id === authUser.id) {
+            fetchHouseholds();
+          }
         }
       )
       .subscribe();

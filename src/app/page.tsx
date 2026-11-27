@@ -9,8 +9,6 @@ import { SkeletonCard } from '@/components/ui/LoadingSkeleton';
 import { AddProductModal } from '@/components/inventory/AddProductModal';
 import { FridgeModal } from '@/components/fridge/FridgeModal';
 import { ShareHouseholdModal } from '@/components/household/ShareHouseholdModal';
-import { EditBudgetModal } from '@/components/budget/EditBudgetModal';
-import { fetchWeeklyBudgetSummary, type WeeklyBudgetSummary } from '@/lib/budget';
 import {
   getDaysUntilExpiry,
   normalizeDateString,
@@ -28,7 +26,6 @@ import {
   Copy,
   Check,
   Users,
-  Edit2,
 } from 'lucide-react';
 import type { Item, ActivityLog } from '@/types/database';
 
@@ -49,43 +46,10 @@ export default function DashboardPage() {
   const [loadingData, setLoadingData] = useState<boolean>(true);
   const [consumingItemId, setConsumingItemId] = useState<string | null>(null);
 
-  // Real Budget Summary state
-  const [budgetSummary, setBudgetSummary] = useState<WeeklyBudgetSummary>({
-    budget: 3000,
-    totalSpent: 0,
-    remaining: 3000,
-    percentUsed: 0,
-    receiptCount: 0,
-    supermarketSpent: 0,
-    deliverySpent: 0,
-    isOverBudget: false,
-    isNearLimit: false,
-    overBudgetAmount: 0,
-    history: [],
-  });
-
-  const handleBudgetUpdated = useCallback((newBudget: number) => {
-    setBudgetSummary((prev) => {
-      const remaining = Math.max(0, newBudget - prev.totalSpent);
-      const overBudgetAmount = Math.max(0, prev.totalSpent - newBudget);
-      const percentUsed = newBudget > 0 ? Math.round((prev.totalSpent / newBudget) * 100) : 0;
-      return {
-        ...prev,
-        budget: newBudget,
-        remaining,
-        percentUsed,
-        isOverBudget: prev.totalSpent > newBudget,
-        isNearLimit: prev.totalSpent <= newBudget && percentUsed >= 80,
-        overBudgetAmount,
-      };
-    });
-  }, []);
-
   // Modals
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAddFridge, setShowAddFridge] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [showEditBudgetModal, setShowEditBudgetModal] = useState(false);
   const [selectedFridgeId, setSelectedFridgeId] = useState<string | undefined>(undefined);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -201,10 +165,6 @@ export default function DashboardPage() {
       if (count !== null) {
         setMemberCount(count);
       }
-
-      // 5. โหลดข้อมูล Real Weekly Budget
-      const summary = await fetchWeeklyBudgetSummary(supabase, currentHousehold.id);
-      setBudgetSummary(summary);
     } catch (err) {
       console.error('Error fetching dashboard data:', (err as { message?: string })?.message || err);
     } finally {
@@ -220,7 +180,6 @@ export default function DashboardPage() {
   const urgentConsumeCount = expiredItems.length + expiringItems.filter((i) => i.daysLeft <= 2).length;
   const soon3To5Count = expiringItems.filter((i) => i.daysLeft >= 3 && i.daysLeft <= 5).length;
   const freshItemsCount = Math.max(0, totalItemsCount - urgentConsumeCount - soon3To5Count);
-  const freshnessPercent = totalItemsCount > 0 ? Math.round((freshItemsCount / totalItemsCount) * 100) : 100;
   const rawCode = currentHousehold?.id || '';
   const householdCode = rawCode.startsWith('#TY-') ? rawCode : `#TY-${rawCode.slice(0, 6).toUpperCase()}`;
 
@@ -338,8 +297,6 @@ export default function DashboardPage() {
     }
   }
 
-  const budgetPercentDisplay = Math.min(100, Math.max(0, budgetSummary.percentUsed));
-
   return (
     <MainLayout>
       <div className="flex flex-col w-full pb-10 gap-5 sm:gap-6 animate-in fade-in duration-300">
@@ -392,11 +349,12 @@ export default function DashboardPage() {
 
             {/* Greeting + Mascot Fridge Card */}
             <div className="flex items-center justify-between gap-4">
-              <div className="space-y-1.5 max-w-xl">
+              <div className="space-y-1.5 max-w-xl min-w-0">
                 <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight leading-snug">
                   สวัสดี {user?.display_name || authUser?.email?.split('@')[0] || 'คุณ'} 👋
-                  <br />
-                  วันนี้ของในตู้เย็นพร้อมทาน {totalItemsCount} ชิ้น
+                  <span className="block text-[18px] min-[380px]:text-[20px] sm:text-3xl whitespace-nowrap mt-0.5">
+                    วันนี้ของในตู้เย็นพร้อมทาน {totalItemsCount} ชิ้น
+                  </span>
                 </h2>
                 <p className="text-xs sm:text-sm text-white/90 leading-relaxed">
                   ติดตามของใกล้หมดอายุและงบประจำสัปดาห์ร่วมกันในบ้าน
@@ -425,75 +383,6 @@ export default function DashboardPage() {
                 <span className="ml-1 text-3xl">🍊</span>
                 <span className="absolute top-2 right-2.5 text-white/80 text-xs">✦</span>
               </div>
-            </div>
-
-            {/* Bottom 2 Translucent Progress Bars: Budget & Freshness Index */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              {/* Budget Progress Card */}
-              <div className="rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 p-3.5 space-y-2">
-                <div className="flex items-center justify-between gap-2 text-xs font-semibold">
-                  <div className="flex items-center gap-1.5">
-                    <span>🪙</span>
-                    <span>งบประมาณรายสัปดาห์</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowEditBudgetModal(true)}
-                      className="p-1 rounded-md hover:bg-white/20 transition cursor-pointer"
-                      title="ตั้งค่างบประมาณรายสัปดาห์"
-                      aria-label="แก้ไขงบประมาณ"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                  <span className="font-heading tabular-nums font-bold">
-                    {budgetSummary.percentUsed}%
-                  </span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-white/25 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      budgetSummary.isOverBudget ? 'bg-rose-300' : 'bg-amber-200'
-                    }`}
-                    style={{ width: `${budgetPercentDisplay}%` }}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-white/90">
-                  <span>
-                    ใช้ไปแล้ว ฿{budgetSummary.totalSpent.toLocaleString()} จาก ฿{budgetSummary.budget.toLocaleString()}
-                  </span>
-                  <Link href="/activities" className="underline hover:text-white">
-                    รายละเอียด
-                  </Link>
-                </div>
-              </div>
-
-              {/* Freshness Index Card */}
-              <Link
-                href="/expirations"
-                className="rounded-2xl bg-white/15 hover:bg-white/20 backdrop-blur-md border border-white/20 p-3.5 space-y-2 transition block"
-              >
-                <div className="flex items-center justify-between gap-2 text-xs font-semibold">
-                  <div className="flex items-center gap-1.5">
-                    <span>⚡</span>
-                    <span>ดัชนีความสดในตู้เย็น</span>
-                  </div>
-                  <span className="font-heading tabular-nums font-bold">
-                    {freshnessPercent}%
-                  </span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-white/25 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-white transition-all duration-500"
-                    style={{ width: `${freshnessPercent}%` }}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-white/90">
-                  <span>
-                    สดใหม่ {freshItemsCount} จาก {totalItemsCount} รายการ
-                  </span>
-                  <span>แตะเพื่อดู →</span>
-                </div>
-              </Link>
             </div>
           </div>
         </section>
@@ -991,17 +880,6 @@ export default function DashboardPage() {
         onClose={() => setShowShareModal(false)}
         household={currentHousehold}
       />
-
-      {/* Edit Budget Modal */}
-      {currentHousehold && (
-        <EditBudgetModal
-          isOpen={showEditBudgetModal}
-          onClose={() => setShowEditBudgetModal(false)}
-          householdId={currentHousehold.id}
-          currentBudget={budgetSummary.budget}
-          onSuccess={handleBudgetUpdated}
-        />
-      )}
     </MainLayout>
   );
 }

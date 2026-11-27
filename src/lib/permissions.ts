@@ -160,16 +160,21 @@ export function resolveMemberPermissions(
   if (rawRole === 'owner') role = 'owner';
   else if (rawRole === 'admin') role = 'admin';
 
-  // ตรวจสอบจาก LocalStorage เผื่อมีข้อมูลที่อัปเดตล่าสุด
-  if (householdId && userId) {
+  // รองรับกรณีฐานข้อมูลเดิมเก็บ effective_role ไว้ใน permissions JSON
+  const effectiveRole = (rawPermissions as { effective_role?: string } | null | undefined)?.effective_role;
+  if (role !== 'owner') {
+    if (effectiveRole === 'admin') role = 'admin';
+    else if (effectiveRole === 'member') role = 'member';
+  }
+
+  // ตรวจสอบจาก LocalStorage เฉพาะเมื่อไม่มี permissions จากฐานข้อมูลหรือซิงค์บนเซิร์ฟเวอร์
+  if (householdId && userId && !rawPermissions) {
     const cached = getLocalMemberPermissions(householdId, userId);
     if (cached) {
       if (rawRole !== 'owner') {
         role = cached.role || role;
       }
-      if (!rawPermissions) {
-        rawPermissions = cached.permissions;
-      }
+      rawPermissions = cached.permissions;
     }
   }
 
@@ -201,6 +206,106 @@ export function resolveMemberPermissions(
   return { role, permissions: merged };
 }
 
+export interface SyncedMemberPermissionEntry {
+  role: MemberRole;
+  permissions: MemberPermissions;
+}
+
+function isMissingColumnError(
+  error: { code?: string; message?: string; details?: string } | null | undefined,
+  columnName: string
+): boolean {
+  if (!error) return false;
+  if (error.code === 'PGRST204' || error.code === '42703') return true;
+  const msg = `${error.message || ''} ${error.details || ''}`.toLowerCase();
+  const col = columnName.toLowerCase();
+  return (
+    msg.includes(`'${col}'`) ||
+    msg.includes(`"${col}"`) ||
+    (msg.includes(col) && (msg.includes('schema cache') || msg.includes('does not exist')))
+  );
+}
+
+function isRoleConstraintError(
+  error: { code?: string; message?: string; details?: string } | null | undefined
+): boolean {
+  if (!error) return false;
+  if (error.code === '23514') return true;
+  const msg = `${error.message || ''} ${error.details || ''}`.toLowerCase();
+  return msg.includes('check constraint') || msg.includes('household_members_role_check');
+}
+
+/**
+ * ดึงข้อมูลสิทธิ์สมาชิกล่าสุดที่ซิงค์ผ่าน activity_logs
+ * ใช้เป็นแหล่งข้อมูลกลางข้ามอุปกรณ์เมื่อตาราง household_members ยังไม่มีคอลัมน์ permissions
+ */
+export async function fetchSyncedMemberPermissionsMap(
+  supabase: SupabaseClient,
+  householdIds: string[]
+): Promise<Map<string, SyncedMemberPermissionEntry>> {
+  const result = new Map<string, SyncedMemberPermissionEntry>();
+  if (!householdIds.length) return result;
+
+  try {
+    const { data, error } = await supabase
+      .from('activity_logs')
+      .select('household_id, details, created_at')
+      .in('household_id', householdIds)
+      .eq('action', 'item_updated')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error || !data) return result;
+
+    for (const row of data as Array<{
+      household_id?: string;
+      details?: {
+        target_user_id?: string;
+        new_role?: MemberRole;
+        permissions?: Partial<MemberPermissions>;
+      } | null;
+    }>) {
+      const hhId = row.household_id;
+      const targetUserId = row.details?.target_user_id;
+      const rawPerms = row.details?.permissions;
+      if (!hhId || !targetUserId || !rawPerms) continue;
+
+      const key = `${hhId}:${targetUserId}`;
+      if (result.has(key)) continue;
+
+      const rawRole: MemberRole =
+        row.details?.new_role === 'owner'
+          ? 'owner'
+          : row.details?.new_role === 'admin'
+            ? 'admin'
+            : 'member';
+      const base = DEFAULT_ROLE_PERMISSIONS[rawRole];
+
+      result.set(key, {
+        role: rawRole,
+        permissions: {
+          can_view_items:
+            rawPerms.can_view_items !== undefined ? Boolean(rawPerms.can_view_items) : base.can_view_items,
+          can_add_items:
+            rawPerms.can_add_items !== undefined ? Boolean(rawPerms.can_add_items) : base.can_add_items,
+          can_edit_items:
+            rawPerms.can_edit_items !== undefined ? Boolean(rawPerms.can_edit_items) : base.can_edit_items,
+          can_delete_items:
+            rawPerms.can_delete_items !== undefined ? Boolean(rawPerms.can_delete_items) : base.can_delete_items,
+          can_manage_members:
+            rawPerms.can_manage_members !== undefined
+              ? Boolean(rawPerms.can_manage_members)
+              : base.can_manage_members,
+        },
+      });
+    }
+  } catch {
+    // ignore sync query errors and rely on household_members / localStorage
+  }
+
+  return result;
+}
+
 /**
  * บันทึกการเปลี่ยนแปลงสิทธิ์สมาชิกไปยัง Supabase ฐานข้อมูลจริง
  */
@@ -222,41 +327,47 @@ export async function updateHouseholdMemberPermissions(
       newRole === 'owner' ? { ...DEFAULT_ROLE_PERMISSIONS.owner } : { ...newPermissions };
 
     // 1. ลองอัปเดตแบบเต็ม (role + permissions) ใน public.household_members
-    let updatePayload: Record<string, unknown> = {
-      role: newRole,
-      permissions: finalPermissions,
-    };
-
     let { error } = await supabase
       .from('household_members')
-      .update(updatePayload)
+      .update({
+        role: newRole,
+        permissions: finalPermissions,
+      })
       .eq('household_id', householdId)
       .eq('user_id', targetUserId);
 
     // หากฐานข้อมูลเดิมติด CHECK constraint (role IN ('owner', 'member'))
-    // ให้บันทึก role เป็น 'member' ในตารางแต่เก็บสิทธิ์และ extended role ใน permissions JSON
-    if (error && (error.message?.includes('check constraint') || error.code === '23514')) {
-      updatePayload = {
-        role: newRole === 'admin' ? 'member' : newRole,
-        permissions: { ...finalPermissions, effective_role: newRole },
-      };
+    // ให้บันทึก role เป็น 'member' ในตารางแต่เก็บสิทธิ์และ effective_role ใน permissions JSON
+    if (isRoleConstraintError(error)) {
       const retry = await supabase
         .from('household_members')
-        .update(updatePayload)
+        .update({
+          role: newRole === 'admin' ? 'member' : newRole,
+          permissions: { ...finalPermissions, effective_role: newRole },
+        })
         .eq('household_id', householdId)
         .eq('user_id', targetUserId);
       error = retry.error;
     }
 
-    // หากยังติดปัญหาคอลัมน์ permissions ยังไม่ถูกเพิ่มใน remote DB
-    // ให้อัปเดตเฉพาะ role และจัดเก็บ permissions ใน activity_logs / localStorage
-    if (error && error.message?.includes('column "permissions"')) {
-      const fallback = await supabase
+    // หาก PostgREST แจ้งว่ายังไม่มีคอลัมน์ 'permissions' ใน schema cache (PGRST204)
+    // ให้อัปเดต role ใน household_members และจัดเก็บ permissions ผ่าน activity_logs + localStorage แทน
+    if (isMissingColumnError(error, 'permissions')) {
+      const roleOnly = await supabase
         .from('household_members')
-        .update({ role: newRole === 'admin' ? 'member' : newRole })
+        .update({ role: newRole })
         .eq('household_id', householdId)
         .eq('user_id', targetUserId);
-      error = fallback.error;
+      error = roleOnly.error;
+
+      if (isRoleConstraintError(error)) {
+        const legacyRole = await supabase
+          .from('household_members')
+          .update({ role: newRole === 'admin' ? 'member' : newRole })
+          .eq('household_id', householdId)
+          .eq('user_id', targetUserId);
+        error = legacyRole.error;
+      }
     }
 
     if (error) {
@@ -266,7 +377,7 @@ export async function updateHouseholdMemberPermissions(
     // 2. แคชผลลัพธ์ลง LocalStorage ให้ซิงค์ทันที
     saveLocalMemberPermissions(householdId, targetUserId, newRole, finalPermissions);
 
-    // 3. บันทึกลง Activity Logs ในฐานข้อมูลจริง
+    // 3. บันทึกลง Activity Logs เพื่อซิงค์ข้ามอุปกรณ์และเก็บประวัติ
     try {
       await supabase.from('activity_logs').insert({
         household_id: householdId,
@@ -274,6 +385,7 @@ export async function updateHouseholdMemberPermissions(
         details: {
           user_name: operatorName,
           item_name: `สิทธิ์สมาชิก (${ROLE_DEFINITIONS.find((r) => r.role === newRole)?.badge || newRole})`,
+          permission_sync: true,
           target_user_id: targetUserId,
           new_role: newRole,
           permissions: finalPermissions,

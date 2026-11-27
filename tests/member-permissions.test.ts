@@ -8,7 +8,10 @@ import {
   PERMISSION_DEFINITIONS,
   saveLocalMemberPermissions,
   getLocalMemberPermissions,
+  updateHouseholdMemberPermissions,
+  fetchSyncedMemberPermissionsMap,
 } from '../src/lib/permissions';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MemberPermissions } from '../src/types/database';
 
 // Mock localStorage for Node test environment
@@ -194,4 +197,110 @@ test('Permissions: checkUserPermission helper works accurately', () => {
   assert.equal(checkUserPermission('delete', 'owner', undefined), true); // owner has full rights
   assert.equal(checkUserPermission('edit', 'admin', undefined), true); // admin can edit
   assert.equal(checkUserPermission('manage_members', 'admin', undefined), false); // admin cannot manage members by default
+});
+
+// ============================================================
+// 7. POSTGREST SCHEMA CACHE FALLBACK & ACTIVITY LOG SYNC TESTS
+// ============================================================
+test('Permissions: updateHouseholdMemberPermissions handles missing permissions column (PGRST204) and syncs via activity_logs', async () => {
+  const updatedPayloads: Array<Record<string, unknown>> = [];
+  const insertedLogs: Array<Record<string, unknown>> = [];
+
+  const mockSupabase = {
+    from: (table: string) => {
+      if (table === 'household_members') {
+        return {
+          update: (payload: Record<string, unknown>) => {
+            updatedPayloads.push(payload);
+            const filterChain = {
+              eq: () => filterChain,
+              then: (resolve: (val: { error: { code?: string; message?: string } | null }) => void) => {
+                if ('permissions' in payload) {
+                  resolve({
+                    error: {
+                      code: 'PGRST204',
+                      message:
+                        "Could not find the 'permissions' column of 'household_members' in the schema cache",
+                    },
+                  });
+                } else if (payload.role === 'admin') {
+                  resolve({
+                    error: {
+                      code: '23514',
+                      message:
+                        'new row for relation "household_members" violates check constraint "household_members_role_check"',
+                    },
+                  });
+                } else {
+                  resolve({ error: null });
+                }
+              },
+            };
+            return filterChain;
+          },
+        };
+      }
+      if (table === 'activity_logs') {
+        return {
+          insert: async (row: Record<string, unknown>) => {
+            insertedLogs.push(row);
+            return { error: null };
+          },
+          select: () => ({
+            in: () => ({
+              eq: () => ({
+                order: () => ({
+                  limit: async () => ({
+                    data: insertedLogs.map((row) => ({
+                      household_id: row.household_id,
+                      details: row.details,
+                      created_at: new Date().toISOString(),
+                    })),
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    },
+  } as unknown as SupabaseClient;
+
+  const targetPermissions: MemberPermissions = {
+    can_view_items: true,
+    can_add_items: true,
+    can_edit_items: true,
+    can_delete_items: true,
+    can_manage_members: false,
+  };
+
+  const res = await updateHouseholdMemberPermissions(
+    mockSupabase,
+    'hh-fallback-1',
+    'user-target-1',
+    'admin',
+    targetPermissions,
+    'เจ้าของบ้าน'
+  );
+
+  assert.equal(res.success, true);
+  assert.equal(updatedPayloads.length, 3);
+  assert.equal(updatedPayloads[2].role, 'member');
+  assert.equal(insertedLogs.length, 1);
+
+  const syncedMap = await fetchSyncedMemberPermissionsMap(mockSupabase, ['hh-fallback-1']);
+  const syncedEntry = syncedMap.get('hh-fallback-1:user-target-1');
+  assert.ok(syncedEntry);
+  assert.equal(syncedEntry.role, 'admin');
+  assert.equal(syncedEntry.permissions.can_add_items, true);
+
+  const resolved = resolveMemberPermissions(
+    'member',
+    { ...targetPermissions, effective_role: 'admin' } as MemberPermissions,
+    'hh-fallback-1',
+    'user-target-1'
+  );
+  assert.equal(resolved.role, 'admin');
 });
