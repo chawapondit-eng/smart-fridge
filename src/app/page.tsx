@@ -356,7 +356,7 @@ export default function DashboardPage() {
                     วันนี้ของในตู้เย็นพร้อมทาน {totalItemsCount} ชิ้น
                   </span>
                 </h2>
-                <p className="text-xs sm:text-sm text-white/90 leading-relaxed">
+                <p className="text-[clamp(10px,2.8vw,12px)] sm:text-sm whitespace-nowrap text-white/90 leading-relaxed">
                   ติดตามของใกล้หมดอายุและงบประจำสัปดาห์ร่วมกันในบ้าน
                 </p>
                 <div className="pt-2 flex items-center gap-2 flex-wrap">
